@@ -49,7 +49,7 @@ git clone https://github.com/magnific0/wondershaper.git /root/wondershaper
 cd /root/wondershaper
 make install
 
-# 創建 wondershaper systemd 服務文件
+# 創建 wondershaper systemd 服務文件，指定正確的 wondershaper 路徑
 cat <<EOL > /etc/systemd/system/wondershaper.service
 [Unit]
 Description=Set bandwidth limits using wondershaper
@@ -58,7 +58,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/sbin/wondershaper -a eth0 -d 7000 -u 7000
+ExecStart=/usr/local/sbin/wondershaper -a eth0 -d 7000 -u 7000
 RemainAfterExit=yes
 
 [Install]
