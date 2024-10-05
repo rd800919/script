@@ -34,14 +34,19 @@ systemctl enable x-ui
 # 安裝 make 和 git
 apt install make git -y
 
-# 如果 wondershaper 文件夾已經存在，則刪除
+# 如果 wondershaper 文件夾已經存在，則強制刪除
 if [ -d "/root/wondershaper" ]; then
   rm -rf /root/wondershaper
 fi
 
+# 如果 systemd 中已有 wondershaper 服務文件，則刪除
+if [ -f "/etc/systemd/system/wondershaper.service" ]; then
+  rm -f /etc/systemd/system/wondershaper.service
+fi
+
 # 克隆 wondershaper 並安裝
 git clone https://github.com/magnific0/wondershaper.git /root/wondershaper
-cd wondershaper
+cd /root/wondershaper
 make install
 
 # 創建 wondershaper systemd 服務文件
