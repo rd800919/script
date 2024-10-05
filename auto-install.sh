@@ -44,7 +44,7 @@ make install
 cat <<EOL > /etc/systemd/system/wondershaper.service
 [Unit]
 Description=Set bandwidth limits using wondershaper
-After=network-online.target
+After=network.target network-online.target
 Wants=network-online.target
 
 [Service]
