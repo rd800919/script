@@ -40,8 +40,25 @@ git clone https://github.com/magnific0/wondershaper.git
 cd wondershaper
 make install
 
-# 設置網絡帶寬限制
-wondershaper -a eth0 -d 7000 -u 7000
+# 創建 wondershaper systemd 服務文件
+cat <<EOL > /etc/systemd/system/wondershaper.service
+[Unit]
+Description=Set bandwidth limits using wondershaper
+After=network.target
 
-# 完成所有操作
-echo "所有操作完成，x-ui 已安裝並配置好，網絡帶寬限制也已設置。"
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/wondershaper -a eth0 -d 7000 -u 7000
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOL
+
+# 重新加載 systemd 並啟用服務
+systemctl daemon-reload
+systemctl enable wondershaper.service
+systemctl start wondershaper.service
+
+# 設置完成提示
+echo "所有操作完成，x-ui 已安裝並配置好，網絡帶寬限制也已設置，且在重啟後仍有效。"
