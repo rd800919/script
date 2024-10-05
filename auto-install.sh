@@ -44,7 +44,8 @@ make install
 cat <<EOL > /etc/systemd/system/wondershaper.service
 [Unit]
 Description=Set bandwidth limits using wondershaper
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=oneshot
@@ -58,7 +59,7 @@ EOL
 # 重新加載 systemd 並啟用服務
 systemctl daemon-reload
 systemctl enable wondershaper.service
-systemctl start wondershaper.service
+systemctl restart wondershaper.service
 
 # 設置完成提示
 echo "所有操作完成，x-ui 已安裝並配置好，網絡帶寬限制也已設置，且在重啟後仍有效。"
