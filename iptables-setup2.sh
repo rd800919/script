@@ -37,9 +37,9 @@ function configure_nat {
     echo "检测到的内网 IP 地址: $internal_ip"
 
     echo "设置 iptables 转发规则..."
-    # 配置 DNAT 规则（入站流量转发）
-    iptables -t nat -A PREROUTING -p tcp --dport $start_port:$end_port -j DNAT --to-destination $target_ip
-    iptables -t nat -A PREROUTING -p udp --dport $start_port:$end_port -j DNAT --to-destination $target_ip
+    # 配置 DNAT 规则（入站流量转发），带起始和结束端口范围
+    iptables -t nat -A PREROUTING -p tcp -m tcp --dport $start_port:$end_port -j DNAT --to-destination $target_ip:$start_port-$end_port
+    iptables -t nat -A PREROUTING -p udp -m udp --dport $start_port:$end_port -j DNAT --to-destination $target_ip:$start_port-$end_port
 
     # 配置 SNAT 规则（出站流量源地址转换）
     iptables -t nat -A POSTROUTING -d $target_ip -p tcp -m tcp --dport $start_port:$end_port -j SNAT --to-source $internal_ip
@@ -50,12 +50,17 @@ function configure_nat {
 
 # 清除指定的转发规则
 function clear_specific_nat {
-    echo "当前 NAT 规则："
+    echo "当前 NAT 规则 (PREROUTING 和 POSTROUTING)："
     iptables -t nat -L PREROUTING --line-numbers
+    iptables -t nat -L POSTROUTING --line-numbers
+    
     read -p "请输入要删除的规则行号: " line_number
     if [[ -n $line_number ]]; then
-        iptables -t nat -D PREROUTING $line_number
-        echo "规则已删除"
+        # 在 PREROUTING 和 POSTROUTING 中删除指定规则
+        iptables -t nat -D PREROUTING $line_number 2>/dev/null && echo "PREROUTING 规则已删除"
+        iptables -t nat -D POSTROUTING $line_number 2>/dev/null && echo "POSTROUTING 规则已删除"
+    else
+        echo "未输入有效的规则行号。返回主菜单。"
     fi
 }
 
