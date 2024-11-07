@@ -74,7 +74,8 @@ function clear_all_nat {
     echo "清除所有 NAT 转发规则..."
     iptables -t nat -F
 
-    # 重新添加转发流量规则
+    # 重新添加 SSH 规则和转发流量规则
+    iptables -I INPUT -p tcp --dport 22 -j ACCEPT
     iptables -I FORWARD -i eth0 -j ACCEPT
 
     echo "所有转发规则已清除并重新设置基本转发规则!"
