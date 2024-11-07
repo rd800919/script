@@ -66,7 +66,7 @@ function clear_nat {
 # 主菜单
 function display_menu {
     clear
-    echo "脚本由 BYY 设计"
+    echo "脚本由 BYY 设计-1.0.1"
     echo "WeChat: x7077796"
     echo "============================"
     echo "选择要执行的操作："
