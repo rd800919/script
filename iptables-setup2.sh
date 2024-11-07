@@ -1,42 +1,12 @@
 #!/bin/bash
 
-# 检测操作系统并设置相应的防火墙规则
-function detect_os_and_configure {
-    if [[ -f /etc/debian_version ]]; then
-        OS="Debian"
-        PKG_MANAGER="apt-get"
-    elif [[ -f /etc/redhat-release ]]; then
-        OS="RedHat"
-        PKG_MANAGER="yum"
-    else
-        echo "不支持的操作系统"
-        exit 1
-    fi
-
-    echo "检测到的操作系统: $OS"
-    echo "更新系统中..."
-    $PKG_MANAGER update -y
-    setup_firewall
-}
-
-# 设置基本的防火墙配置
+# 设置基本的防火墙配置和 IP 转发
 function setup_firewall {
-    echo "配置基本的防火墙规则和IP转发..."
+    echo "更新系统中..."
+    yum update -y
+    echo "配置基本的防火墙规则和 IP 转发..."
     echo "net.ipv4.ip_forward = 1" | tee -a /etc/sysctl.conf
     sysctl -p
-
-    if [[ $OS == "Debian" ]]; then
-        if iptables -V | grep -q "nf_tables"; then
-            echo "系统使用 nf_tables 后端的 iptables"
-            # Debian 使用 nftables 的处理方式
-        else
-            echo "系统使用传统 iptables"
-            # Debian 使用传统 iptables 的处理方式
-        fi
-    elif [[ $OS == "RedHat" ]]; then
-        echo "系统使用传统 iptables"
-        # RedHat 使用传统 iptables 的处理方式
-    fi
 }
 
 # 配置端口转发
@@ -56,8 +26,19 @@ function configure_nat {
     echo "转发设置已完成!"
 }
 
-# 清除转发规则
-function clear_nat {
+# 清除指定的转发规则
+function clear_specific_nat {
+    echo "当前 NAT 规则："
+    iptables -t nat -L PREROUTING --line-numbers
+    read -p "请输入要删除的规则行号: " line_number
+    if [[ -n $line_number ]]; then
+        iptables -t nat -D PREROUTING $line_number
+        echo "规则已删除"
+    fi
+}
+
+# 清除所有转发规则
+function clear_all_nat {
     echo "清除所有 NAT 转发规则..."
     iptables -t nat -F
     echo "所有转发规则已清除!"
@@ -66,23 +47,24 @@ function clear_nat {
 # 主菜单
 function display_menu {
     clear
-    echo "脚本由 BYY 设计-1.0.1"
+    echo "脚本由 BYY 设计"
     echo "WeChat: x7077796"
     echo "============================"
     echo "选择要执行的操作："
-    echo "1. 检测系统并安装基本组件"
-    echo "2. 设置端口转发"
-    echo "3. 清除端口转发"
-    echo "4. 退出"
+    echo "1. 执行事前准备和安装"
+    echo "2. 设置转发"
+    echo "3. 清除指定转发"
+    echo "4. 清除所有转发"
+    echo "5. 退出"
     echo "============================"
 }
 
 while true; do
     display_menu
-    read -p "请输入选项 (1, 2, 3 或 4): " choice
+    read -p "请输入选项 (1, 2, 3, 4 或 5): " choice
     case $choice in
         1)
-            detect_os_and_configure
+            setup_firewall
             read -p "按任意键继续..." key
             ;;
         2)
@@ -90,15 +72,19 @@ while true; do
             read -p "按任意键继续..." key
             ;;
         3)
-            clear_nat
+            clear_specific_nat
             read -p "按任意键继续..." key
             ;;
         4)
+            clear_all_nat
+            read -p "按任意键继续..." key
+            ;;
+        5)
             echo "退出脚本..."
             exit 0
             ;;
         *)
-            echo "无效的选项。请输入 1, 2, 3 或 4。"
+            echo "无效的选项。请输入 1, 2, 3, 4 或 5。"
             read -p "按任意键继续..." key
             ;;
     esac
