@@ -51,8 +51,8 @@ function configure_nat {
 
     echo "设置 iptables 转发规则..."
     iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-    iptables -t nat -A PREROUTING -p tcp --dport $start_port:$end_port -j DNAT --to-destination $target_ip:$start_port-$end_port
-    iptables -t nat -A PREROUTING -p udp --dport $start_port:$end_port -j DNAT --to-destination $target_ip:$start_port-$end_port
+    iptables -t nat -A PREROUTING -p tcp --dport $start_port:$end_port -j DNAT --to-destination $target_ip
+    iptables -t nat -A PREROUTING -p udp --dport $start_port:$end_port -j DNAT --to-destination $target_ip
     echo "转发设置已完成!"
 }
 
