@@ -4,9 +4,26 @@
 function setup_firewall {
     echo "更新系统中..."
     yum update -y
+
+    echo "禁用 firewalld 并启用 iptables 服务..."
+    systemctl stop firewalld
+    systemctl disable firewalld
+    yum install iptables-services -y
+    systemctl enable iptables
+    systemctl start iptables
+
     echo "配置基本的防火墙规则和 IP 转发..."
     echo "net.ipv4.ip_forward = 1" | tee -a /etc/sysctl.conf
     sysctl -p
+
+    # 添加转发流量规则，仅需运行一次
+    iptables -I FORWARD -i eth0 -j ACCEPT
+
+    # 保存当前 iptables 配置并重启 iptables 服务
+    service iptables save
+    systemctl restart iptables
+
+    echo "防火墙设置和 IP 转发配置已完成！"
 }
 
 # 配置端口转发
@@ -20,9 +37,14 @@ function configure_nat {
     echo "检测到的内网 IP 地址: $internal_ip"
 
     echo "设置 iptables 转发规则..."
-    iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+    # 配置 DNAT 规则（入站流量转发）
     iptables -t nat -A PREROUTING -p tcp --dport $start_port:$end_port -j DNAT --to-destination $target_ip
     iptables -t nat -A PREROUTING -p udp --dport $start_port:$end_port -j DNAT --to-destination $target_ip
+
+    # 配置 SNAT 规则（出站流量源地址转换）
+    iptables -t nat -A POSTROUTING -d $target_ip -p tcp -m tcp --dport $start_port:$end_port -j SNAT --to-source $internal_ip
+    iptables -t nat -A POSTROUTING -d $target_ip -p udp -m udp --dport $start_port:$end_port -j SNAT --to-source $internal_ip
+
     echo "转发设置已完成!"
 }
 
@@ -41,7 +63,11 @@ function clear_specific_nat {
 function clear_all_nat {
     echo "清除所有 NAT 转发规则..."
     iptables -t nat -F
-    echo "所有转发规则已清除!"
+
+    # 重新添加转发流量规则
+    iptables -I FORWARD -i eth0 -j ACCEPT
+
+    echo "所有转发规则已清除并重新设置基本转发规则!"
 }
 
 # 主菜单
