@@ -5,19 +5,21 @@ function setup_firewall {
     echo "更新系统中..."
     yum update -y
 
+    echo "确保 iptables 服务已安装并允许 SSH..."
+    yum install -y iptables-services
+    systemctl enable iptables
+    systemctl start iptables
+
+    # 添加允许 SSH 连接的规则，以防止 SSH 断开
+    iptables -I INPUT -p tcp --dport 22 -j ACCEPT
+
     echo "禁用 firewalld 并启用 iptables 服务..."
     systemctl stop firewalld
     systemctl disable firewalld
-    yum install iptables-services -y
-    systemctl enable iptables
-    systemctl start iptables
 
     echo "配置基本的防火墙规则和 IP 转发..."
     echo "net.ipv4.ip_forward = 1" | tee -a /etc/sysctl.conf
     sysctl -p
-
-    # 添加允许 SSH 连接的规则，以防止 SSH 断开
-    iptables -I INPUT -p tcp --dport 22 -j ACCEPT
 
     # 添加转发流量规则，仅需运行一次
     iptables -I FORWARD -i eth0 -j ACCEPT
@@ -81,7 +83,7 @@ function clear_all_nat {
 # 主菜单
 function display_menu {
     clear
-    echo "脚本由 BYY 设计-v001"
+    echo "脚本由 BYY 设计-v002"
     echo "WeChat: x7077796"
     echo "============================"
     echo "选择要执行的操作："
