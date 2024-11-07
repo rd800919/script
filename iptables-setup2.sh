@@ -16,6 +16,9 @@ function setup_firewall {
     echo "net.ipv4.ip_forward = 1" | tee -a /etc/sysctl.conf
     sysctl -p
 
+    # 添加允许 SSH 连接的规则，以防止 SSH 断开
+    iptables -I INPUT -p tcp --dport 22 -j ACCEPT
+
     # 添加转发流量规则，仅需运行一次
     iptables -I FORWARD -i eth0 -j ACCEPT
 
