@@ -10,7 +10,9 @@ function display_menu {
     echo "选择要执行的操作："
     echo "1. 执行事前准备和安装"
     echo "2. 设置转发"
-    echo "3. 退出"
+    echo "3. 清除指定转发"
+    echo "4. 清除所有转发"
+    echo "5. 退出"
     echo "============================"
 }
 
@@ -49,17 +51,21 @@ function setup_iptables {
 
 function configure_nat {
     read -p "请输入需要中转的外部 IP: " target_ip
-    read -p "请输入TCP/UDP端口范围 (例如 10000-10002): " port_range
+    read -p "请输入TCP/UDP起始端口: " start_port
+    read -p "请输入TCP/UDP结束端口: " end_port
 
     echo "获取内网 IP 地址..."
     internal_ip=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
     echo "检测到的内网 IP 地址: $internal_ip"
 
+    port_range="${start_port}-${end_port}"
+    port_range_colon="${start_port}:${end_port}"
+
     echo "设置 iptables 转发规则..."
     iptables -t nat -A POSTROUTING -d $target_ip -p tcp -m tcp --dport $port_range -j SNAT --to-source $internal_ip
     iptables -t nat -A POSTROUTING -d $target_ip -p udp -m udp --dport $port_range -j SNAT --to-source $internal_ip
-    iptables -t nat -A PREROUTING -p tcp -m tcp --dport $port_range -j DNAT --to-destination $target_ip:$port_range
-    iptables -t nat -A PREROUTING -p udp -m udp --dport $port_range -j DNAT --to-destination $target_ip:$port_range
+    iptables -t nat -A PREROUTING -p tcp -m tcp --dport $port_range -j DNAT --to-destination $target_ip:$port_range_colon
+    iptables -t nat -A PREROUTING -p udp -m udp --dport $port_range -j DNAT --to-destination $target_ip:$port_range_colon
 
     echo "保存 iptables 设置..."
     service iptables save
@@ -67,9 +73,27 @@ function configure_nat {
     echo "转发设置已完成!"
 }
 
+function clear_specific_nat {
+    echo "当前 NAT 规则："
+    iptables -t nat -L PREROUTING --line-numbers
+    read -p "请输入要删除的规则行号: " line_number
+    if [[ -n $line_number ]]; then
+        iptables -t nat -D PREROUTING $line_number
+        echo "规则已删除"
+        service iptables save
+    fi
+}
+
+function clear_all_nat {
+    echo "清除所有 NAT 转发规则..."
+    iptables -t nat -F
+    service iptables save
+    echo "所有转发规则已清除!"
+}
+
 while true; do
     display_menu
-    read -p "请输入选项 (1, 2 或 3): " choice
+    read -p "请输入选项 (1, 2, 3, 4 或 5): " choice
     case $choice in
         1)
             setup_iptables
@@ -80,11 +104,19 @@ while true; do
             read -p "按任意键继续..." key
             ;;
         3)
+            clear_specific_nat
+            read -p "按任意键继续..." key
+            ;;
+        4)
+            clear_all_nat
+            read -p "按任意键继续..." key
+            ;;
+        5)
             echo "退出脚本..."
             exit 0
             ;;
         *)
-            echo "无效的选项。请输入 1, 2 或 3。"
+            echo "无效的选项。请输入 1, 2, 3, 4 或 5。"
             read -p "按任意键继续..." key
             ;;
     esac
