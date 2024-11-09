@@ -71,20 +71,22 @@ add_forward_rule() {
     # 添加新的iptables規則
     echo "正在配置中轉規則，目標IP: $target_ip, 端口範圍: $start_port-$end_port"
 
-    # 允許所有來自外部的 TCP 和 UDP 流量的轉發
+    # 允許所有來自外部的 TCP 流量的轉發
     iptables -I FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
-    iptables -I FORWARD -p udp --dport "$start_port":"$end_port" -j ACCEPT
+    # 允許所有來自外部的 UDP 流量的轉發
+    iptables -I FORWARD -p udp -j ACCEPT
 
     # 允許已建立和相關的連接，確保返回流量能正確通過
     iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 
-    # DNAT 將進入的連接轉發到目標IP
+    # DNAT 將進入的 TCP 連接轉發到目標IP
     iptables -t nat -A PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
-    iptables -t nat -A PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
+    # DNAT 將所有進入的 UDP 流量轉發到目標IP
+    iptables -t nat -A PREROUTING -p udp -j DNAT --to-destination "$target_ip"
 
     # SNAT 修改源地址為本地內網地址，確保回覆能正確返回
     iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
-    iptables -t nat -A POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
+    iptables -t nat -A POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip"
 
     echo "$target_ip $start_port $end_port" >> /var/log/iptables_rules.log
 
@@ -128,13 +130,13 @@ clear_specific_rule() {
 
   # 清除指定端口範圍的 FORWARD 規則
   iptables -D FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
-  iptables -D FORWARD -p udp --dport "$start_port":"$end_port" -j ACCEPT
+  iptables -D FORWARD -p udp -j ACCEPT
 
   # 清除指定端口範圍的 PREROUTING 和 POSTROUTING 規則
   iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
-  iptables -t nat -D PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
+  iptables -t nat -D PREROUTING -p udp -j DNAT --to-destination "$target_ip"
   iptables -t nat -D POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$target_ip"
-  iptables -t nat -D POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$target_ip"
+  iptables -t nat -D POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$target_ip"
 
   sed -i "${rule_number}d" /var/log/iptables_rules.log
 
