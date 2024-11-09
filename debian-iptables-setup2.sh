@@ -8,10 +8,6 @@ function setup_firewall {
     echo "确保 iptables 服务已安装并允许 SSH..."
     DEBIAN_FRONTEND=noninteractive apt install -y iptables iptables-persistent
 
-    # 启用并启动 iptables-persistent 以持久化规则
-    systemctl enable netfilter-persistent
-    systemctl start netfilter-persistent
-
     # 添加允许 SSH 连接的规则，以防止 SSH 断开
     iptables -I INPUT -p tcp --dport 22 -j ACCEPT
 
@@ -28,7 +24,6 @@ function setup_firewall {
     # 保存当前 iptables 配置
     iptables-save > /etc/iptables/rules.v4
     ip6tables-save > /etc/iptables/rules.v6
-    systemctl restart netfilter-persistent
 
     echo "防火墙设置和 IP 转发配置已完成！"
 }
@@ -116,10 +111,9 @@ function clear_specific_nat {
     else
         echo "未输入有效的规则行号。返回主菜单。"
     fi
-    # 保存更改
+    # 保存规则
     iptables-save > /etc/iptables/rules.v4
     ip6tables-save > /etc/iptables/rules.v6
-    systemctl restart netfilter-persistent
 }
 
 # 清除所有转发规则
@@ -132,10 +126,9 @@ function clear_all_nat {
     iptables -I INPUT -p tcp --dport 22 -j ACCEPT
     iptables -P FORWARD DROP  # 确保默认的 FORWARD 策略为拒绝
 
-    # 保存更改
+    # 保存规则
     iptables-save > /etc/iptables/rules.v4
     ip6tables-save > /etc/iptables/rules.v6
-    systemctl restart netfilter-persistent
     echo "所有转发规则已清除并重新设置基本转发规则!"
 }
 
