@@ -88,9 +88,8 @@ function configure_nat {
     fi
 
     # 精确 FORWARD 规则以仅允许特定端口范围
-    iptables -A FORWARD -p tcp --dport $start_port:$end_port -j ACCEPT
-    iptables -A FORWARD -p udp --dport $start_port:$end_port -j ACCEPT
-    iptables -A FORWARD -j DROP  # 丢弃未匹配的流量
+    iptables -I FORWARD -p tcp --dport $start_port:$end_port -j ACCEPT
+    iptables -I FORWARD -p udp --dport $start_port:$end_port -j ACCEPT
 
     # 保存规则
     netfilter-persistent save
@@ -139,7 +138,7 @@ function clear_all_nat {
 # 主菜单
 function display_menu {
     clear
-    echo "脚本由 BYY 设计-v007"
+    echo "脚本由 BYY 设计-v008"
     echo "WeChat: x7077796"
     echo "============================"
     echo "选择要执行的操作："
