@@ -6,7 +6,6 @@ function setup_firewall {
     apt update -y && apt upgrade -y -o 'APT::Get::Assume-Yes=true'
 
     echo "确保 iptables 服务已安装并允许 SSH..."
-    # 使用非交互模式安装 iptables 和 iptables-persistent
     DEBIAN_FRONTEND=noninteractive apt install -y iptables iptables-persistent
 
     # 启用并启动 iptables-persistent 以持久化规则
@@ -35,7 +34,6 @@ function setup_firewall {
 
 # 自动检测内网 IP 和网卡名称
 function detect_internal_ip {
-    local ip_addr
     local interface=$(ip -4 route ls | grep default | awk '{print $5}' | head -1)
     
     if [[ -z "$interface" ]]; then
@@ -43,7 +41,7 @@ function detect_internal_ip {
         return 1
     fi
 
-    ip_addr=$(ip -4 addr show "$interface" | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+    local ip_addr=$(ip -4 addr show "$interface" | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
     
     if [[ -z "$ip_addr" ]]; then
         echo "未能自动检测到内网 IP，请手动输入。"
@@ -59,16 +57,20 @@ function configure_nat {
     read -p "请输入需要中转的外部 IP: " target_ip
     read -p "请输入TCP/UDP起始端口: " start_port
     read -p "请输入TCP/UDP结束端口: " end_port
-    read -p "请输入内网 IP 地址（直接按 Enter 自动检测）: " internal_ip
 
-    # 如果用户未输入内网 IP 地址，自动检测网卡 IP
+    # 自动检测或手动输入内网 IP 地址
+    read -p "请输入内网 IP 地址（直接按 Enter 自动检测）: " internal_ip
     if [ -z "$internal_ip" ]; then
         internal_ip=$(detect_internal_ip)
-        if [ -z "$internal_ip" ]; then
-            echo "无法检测到内网 IP。请手动输入有效的内网 IP。"
-            return 1
+        if [ $? -ne 0 ] || [ -z "$internal_ip" ]; then
+            read -p "自动检测失败，请手动输入有效的内网 IP: " internal_ip
+            if [ -z "$internal_ip" ]; then
+                echo "未提供有效的内网 IP，操作中止。"
+                return 1
+            fi
+        else
+            echo "检测到的内网 IP 地址: $internal_ip"
         fi
-        echo "检测到的内网 IP 地址: $internal_ip"
     fi
 
     echo "设置 iptables 转发规则..."
@@ -131,7 +133,7 @@ function clear_all_nat {
 # 主菜单
 function display_menu {
     clear
-    echo "脚本由 BYY 设计-v006"
+    echo "脚本由 BYY 设计-v005"
     echo "WeChat: x7077796"
     echo "============================"
     echo "选择要执行的操作："
