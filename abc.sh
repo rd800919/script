@@ -17,6 +17,22 @@ install_update_tools() {
   # 更新包管理器並安裝iptables和net-tools（如果尚未安裝）
   apt update -y && apt upgrade -y -o 'APT::Get::Assume-Yes=true'
   apt-get install -y iptables net-tools
+  
+  # 禁用 ufw 防火牆（如果存在且激活）
+  if command -v ufw >/dev/null 2>&1; then
+    ufw_status=$(ufw status | grep -o 'active')
+    if [[ "$ufw_status" == "active" ]]; then
+      echo "發現 ufw 防火牆正在運行，正在禁用..."
+      ufw disable
+      echo "ufw 已禁用。"
+    fi
+  fi
+  
+  # 配置基本的防火牆規則和 IP 轉發
+  echo "配置基本的防火牆規則和 IP 轉發..."
+  echo "net.ipv4.ip_forward = 1" | tee -a /etc/sysctl.conf
+  sysctl -p
+  
   echo "工具安裝或更新完成。"
 }
 
