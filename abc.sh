@@ -71,7 +71,7 @@ add_forward_rule() {
     # 清除與當前端口範圍相關的舊規則，避免重複添加
     echo "清除與當前端口範圍相關的舊規則..."
     iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip" 2>/dev/null
-    ip" -j DNAT --to-destination "$target_ip" 2>/dev/null
+    iptables -t nat -D PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip" 2>/dev/null
     iptables -D FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT 2>/dev/null
     iptables -D FORWARD -p udp --dport "$start_port":"$end_port" -j ACCEPT 2>/dev/null
     iptables -t nat -D POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip" 2>/dev/null
@@ -96,10 +96,6 @@ add_forward_rule() {
     iptables -t nat -A POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
 
     echo "中轉規則配置完成。"
-  else
-    echo "無效的端口範圍，請確保輸入的端口在 1 到 65535 之間，且起始端口小於或等於結束端口。"
-  fi
-}
   else
     echo "無效的端口範圍，請確保輸入的端口在 1 到 65535 之間，且起始端口小於或等於結束端口。"
   fi
