@@ -68,21 +68,27 @@ add_forward_rule() {
 
   # 驗證輸入是否為有效的端口範圍
   if [[ $start_port -gt 0 && $start_port -le 65535 && $end_port -gt 0 && $end_port -le 65535 && $start_port -le $end_port ]]; then
-    # 檢查並清除與要設置的端口相關的舊規則，避免重複添加
-    iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip" 2>/dev/null
-    iptables -t nat -D PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip" 2>/dev/null
-    iptables -D FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT 2>/dev/null
-    iptables -D FORWARD -p udp -j ACCEPT 2>/dev/null
-    iptables -t nat -D POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip" 2>/dev/null
-    iptables -t nat -D POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip" 2>/dev/null
+        iptables -t nat -D POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip" 2>/dev/null
 
+    # 確認是否已存在相同的轉發規則，避免重複添加
+    existing_tcp_forward=$(iptables -t nat -C PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip" 2>/dev/null)
+    existing_udp_forward=$(iptables -t nat -C PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip" 2>/dev/null)
+    if [ -z "$existing_tcp_forward" ]; then
+      # 添加 TCP 規則
+      iptables -t nat -A PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
+      iptables -I FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
+    fi
+    if [ -z "$existing_udp_forward" ]; then
+      # 添加 UDP 規則
+      iptables -t nat -A PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
+      iptables -I FORWARD -p udp --dport "$start_port":"$end_port" -j ACCEPT
+    fi
     # 添加新的iptables規則
     echo "正在配置中轉規則，目標IP: $target_ip, 端口範圍: $start_port-$end_port"
 
     # 允許所有來自外部的 TCP 流量的轉發
     iptables -I FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
-    # 允許所有來自外部的 UDP 流量的轉發
-    iptables -I FORWARD -p udp -j ACCEPT
+        iptables -I FORWARD -p udp -j ACCEPT
 
     # 允許已建立和相關的連接，確保返回流量能正確通過
     iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
