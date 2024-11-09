@@ -3,7 +3,7 @@
 # 定義顯示選單的函數
 show_menu() {
   echo "=============================="
-  echo " 中轉服務器設置選單2 "
+  echo " 中轉服務器設置選單 "
   echo "=============================="
   echo "1. 安裝或更新必要工具"
   echo "2. 設置中轉規則"
@@ -68,10 +68,6 @@ add_forward_rule() {
 
   # 驗證輸入是否為有效的端口範圍
   if [[ $start_port -gt 0 && $start_port -le 65535 && $end_port -gt 0 && $end_port -le 65535 && $start_port -le $end_port ]]; then
-    # 清除舊的規則，確保未設置的端口無法通行
-    iptables -t nat -F
-    iptables -F FORWARD
-
     # 添加新的iptables規則
     echo "正在配置中轉規則，目標IP: $target_ip, 端口範圍: $start_port-$end_port"
 
@@ -137,8 +133,8 @@ clear_specific_rule() {
   # 清除指定端口範圍的 PREROUTING 和 POSTROUTING 規則
   iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
   iptables -t nat -D PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
-  iptables -t nat -D POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
-  iptables -t nat -D POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
+  iptables -t nat -D POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$target_ip"
+  iptables -t nat -D POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$target_ip"
 
   sed -i "${rule_number}d" /var/log/iptables_rules.log
 
