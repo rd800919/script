@@ -57,6 +57,9 @@ detect_internal_ip() {
   echo "$ip_addr"
 }
 
+# 記錄規則的文件
+RULES_FILE="/var/log/iptables_rules.log"
+
 # 添加中轉規則的函數
 add_forward_rule() {
   read -p "請輸入需要被中轉的目標IP地址: " target_ip
@@ -86,6 +89,9 @@ add_forward_rule() {
     iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
     iptables -t nat -A POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip"  # 對所有的 UDP 轉發進行源地址修改
 
+    # 記錄規則到文件中
+    echo "$target_ip $start_port $end_port" >> "$RULES_FILE"
+
     echo "中轉規則配置完成。"
   else
     echo "無效的端口範圍，請確保輸入的端口在 1 到 65535 之間，且起始端口小於或等於結束端口。"
@@ -97,32 +103,48 @@ clear_all_rules() {
   echo "正在清除所有防火牆規則..."
   iptables -t nat -F
   iptables -F FORWARD
+  # 清除記錄文件
+  > "$RULES_FILE"
   echo "所有防火牆規則已清除。"
 }
 
 # 清除指定端口設置的函數
 clear_specific_rule() {
-  read -p "請輸入需要清除的起始端口: " start_port
-  read -p "請輸入需要清除的結尾端口: " end_port
-
-  # 驗證輸入是否為有效的端口範圍
-  if [[ $start_port -gt 0 && $start_port -le 65535 && $end_port -gt 0 && $end_port -le 65535 && $start_port -le $end_port ]]; then
-    echo "正在清除端口範圍: $start_port-$end_port 的防火牆規則..."
-
-    # 清除指定端口範圍的 FORWARD 規則
-    iptables -D FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
-    iptables -D FORWARD -p udp --dport "$start_port":"$end_port" -j ACCEPT
-
-    # 清除指定端口範圍的 PREROUTING 和 POSTROUTING 規則
-    iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT
-    iptables -t nat -D PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT
-    iptables -t nat -D POSTROUTING -p tcp --dport "$start_port":"$end_port" -j SNAT
-    iptables -t nat -D POSTROUTING -p udp --dport "$start_port":"$end_port" -j SNAT
-
-    echo "指定的防火牆規則已清除。"
-  else
-    echo "無效的端口範圍，請確保輸入的端口在 1 到 65535 之間，且起始端口小於或等於結束端口。"
+  if [[ ! -f "$RULES_FILE" ]]; then
+    echo "沒有找到任何記錄的規則。"
+    return
   fi
+
+  echo "以下是當前已設置的規則:"
+  cat -n "$RULES_FILE"
+  read -p "請選擇要清除的規則編號: " rule_number
+
+  rule=$(sed -n "${rule_number}p" "$RULES_FILE")
+  if [[ -z "$rule" ]]; then
+    echo "無效的規則編號。"
+    return
+  fi
+
+  target_ip=$(echo "$rule" | awk '{print $1}')
+  start_port=$(echo "$rule" | awk '{print $2}')
+  end_port=$(echo "$rule" | awk '{print $3}')
+
+  echo "正在清除端口範圍: $start_port-$end_port 的防火牆規則..."
+
+  # 清除指定端口範圍的 FORWARD 規則
+  iptables -D FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
+  iptables -D FORWARD -p udp --dport "$start_port":"$end_port" -j ACCEPT
+
+  # 清除指定端口範圍的 PREROUTING 和 POSTROUTING 規則
+  iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT
+  iptables -t nat -D PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT
+  iptables -t nat -D POSTROUTING -p tcp --dport "$start_port":"$end_port" -j SNAT
+  iptables -t nat -D POSTROUTING -p udp --dport "$start_port":"$end_port" -j SNAT
+
+  # 從記錄文件中移除規則
+  sed -i "${rule_number}d" "$RULES_FILE"
+
+  echo "指定的防火牆規則已清除。"
 }
 
 # 主循環
