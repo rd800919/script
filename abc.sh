@@ -15,7 +15,7 @@ show_menu() {
 install_update_tools() {
   echo "正在安裝或更新必要的工具..."
   # 更新包管理器並安裝iptables和net-tools（如果尚未安裝）
-  apt-get update
+  apt update -y && apt upgrade -y -o 'APT::Get::Assume-Yes=true'
   apt-get install -y iptables net-tools
   echo "工具安裝或更新完成。"
 }
