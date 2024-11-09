@@ -34,7 +34,13 @@ function configure_nat {
     read -p "请输入需要中转的外部 IP: " target_ip
     read -p "请输入TCP/UDP起始端口: " start_port
     read -p "请输入TCP/UDP结束端口: " end_port
-    read -p "请输入内网 IP 地址: " internal_ip
+    read -p "请输入内网 IP 地址（按 Enter 略过将会自动检测）: " internal_ip
+
+    # 如果用户未输入内网 IP 地址，自动检测 eth0 网卡的内网 IP
+    if [ -z "$internal_ip" ]; then
+        internal_ip=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+        echo "检测到的内网 IP 地址: $internal_ip"
+    fi
 
     echo "设置 iptables 转发规则..."
     # 配置 DNAT 规则（入站流量转发），带起始和结束端口范围
