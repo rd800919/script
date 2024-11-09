@@ -78,9 +78,14 @@ function configure_nat {
     iptables -t nat -A PREROUTING -p tcp --dport $start_port:$end_port -j DNAT --to-destination $target_ip
     iptables -t nat -A PREROUTING -p udp --dport $start_port:$end_port -j DNAT --to-destination $target_ip
 
-    # 配置 SNAT 规则（出站流量源地址转换）
-    iptables -t nat -A POSTROUTING -d $target_ip -p tcp --dport $start_port:$end_port -j SNAT --to-source $internal_ip
-    iptables -t nat -A POSTROUTING -d $target_ip -p udp --dport $start_port:$end_port -j SNAT --to-source $internal_ip
+    # 确保 internal_ip 变量有有效值，避免空值导致规则未设置
+    if [ -z "$internal_ip" ]; then
+        echo "内部 IP 地址未设置，跳过 SNAT 配置。"
+    else
+        # 配置 SNAT 规则（出站流量源地址转换）
+        iptables -t nat -A POSTROUTING -d $target_ip -p tcp --dport $start_port:$end_port -j SNAT --to-source $internal_ip
+        iptables -t nat -A POSTROUTING -d $target_ip -p udp --dport $start_port:$end_port -j SNAT --to-source $internal_ip
+    fi
 
     # 精确 FORWARD 规则以仅允许特定端口范围
     iptables -A FORWARD -p tcp --dport $start_port:$end_port -j ACCEPT
@@ -133,7 +138,7 @@ function clear_all_nat {
 # 主菜单
 function display_menu {
     clear
-    echo "脚本由 BYY 设计-v005"
+    echo "脚本由 BYY 设计-v006"
     echo "WeChat: x7077796"
     echo "============================"
     echo "选择要执行的操作："
