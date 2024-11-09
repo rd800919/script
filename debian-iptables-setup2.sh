@@ -20,8 +20,10 @@ function setup_firewall {
     echo "net.ipv4.ip_forward = 1" | tee -a /etc/sysctl.conf
     sysctl -p
 
-    # 默认拒绝转发流量，保证未配置的端口不转发
+    # 设置默认 FORWARD 策略为 DROP 确保未指定的端口不转发
     iptables -P FORWARD DROP
+
+    # 清除 NAT 表中任何残留规则
     iptables -t nat -F
 
     # 保存当前 iptables 配置
@@ -104,7 +106,7 @@ function clear_all_nat {
 # 主菜单
 function display_menu {
     clear
-    echo "脚本由 BYY 设计-v004"
+    echo "脚本由 BYY 设计-v005"
     echo "WeChat: x7077796"
     echo "============================"
     echo "选择要执行的操作："
