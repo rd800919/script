@@ -60,7 +60,7 @@ detect_internal_ip() {
 add_forward_rule() {
   read -p "請輸入需要被中轉的目標IP地址: " target_ip
   read -p "請輸入起始轉發端口: " start_port
-  read -p "請輸入結束轉發端口: " end_port
+  read -p "請輸入結尾轉發端口: " end_port
 
   # 自動獲取內網地址
   local_ip=$(detect_internal_ip)
@@ -74,16 +74,20 @@ add_forward_rule() {
     # 添加新的iptables規則
     echo "正在配置中轉規則，目標IP: $target_ip, 端口範圍: $start_port-$end_port"
 
-    # 允許轉發來自所有接口的流量
-    iptables -I FORWARD -i eth0 -j ACCEPT
+    # 允許所有來自外部的 TCP 和 UDP 流量的轉發
+    iptables -I FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
+    iptables -I FORWARD -p udp --dport "$start_port":"$end_port" -j ACCEPT
 
-    # SNAT 修改源地址為本地內網地址
-    iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
-    iptables -t nat -A POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
+    # 允許已建立和相關的連接，確保返回流量能正確通過
+    iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 
     # DNAT 將進入的連接轉發到目標IP
     iptables -t nat -A PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
     iptables -t nat -A PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
+
+    # SNAT 修改源地址為本地內網地址，確保回覆能正確返回
+    iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
+    iptables -t nat -A POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
 
     echo "中轉規則配置完成。"
   else
