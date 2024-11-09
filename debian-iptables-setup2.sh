@@ -19,6 +19,10 @@ function setup_firewall {
     echo "net.ipv4.ip_forward = 1" | tee -a /etc/sysctl.conf
     sysctl -p
 
+    # 默认拒绝转发流量，保证未配置的端口不转发
+    iptables -P FORWARD DROP
+    iptables -t nat -F
+
     # 保存当前 iptables 配置
     netfilter-persistent save
     systemctl restart netfilter-persistent
@@ -88,6 +92,7 @@ function clear_all_nat {
 
     # 重新添加 SSH 规则
     iptables -I INPUT -p tcp --dport 22 -j ACCEPT
+    iptables -P FORWARD DROP  # 确保默认的 FORWARD 策略为拒绝
 
     # 强制保存并重启 netfilter-persistent
     netfilter-persistent save
