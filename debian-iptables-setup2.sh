@@ -90,6 +90,7 @@ function configure_nat {
     # 精确 FORWARD 规则以仅允许特定端口范围
     iptables -A FORWARD -p tcp --dport $start_port:$end_port -j ACCEPT
     iptables -A FORWARD -p udp --dport $start_port:$end_port -j ACCEPT
+    iptables -A FORWARD -j DROP  # 丢弃未匹配的流量
 
     # 保存规则
     netfilter-persistent save
