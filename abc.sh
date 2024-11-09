@@ -68,32 +68,28 @@ add_forward_rule() {
 
   # 驗證輸入是否為有效的端口範圍
   if [[ $start_port -gt 0 && $start_port -le 65535 && $end_port -gt 0 && $end_port -le 65535 && $start_port -le $end_port ]]; then
-    # 清除與當前端口範圍相關的舊規則，避免重複添加
-    echo "清除與當前端口範圍相關的舊規則..."
-    iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip" 2>/dev/null
-    iptables -t nat -D PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip" 2>/dev/null
-    iptables -D FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT 2>/dev/null
-    iptables -D FORWARD -p udp --dport "$start_port":"$end_port" -j ACCEPT 2>/dev/null
-    iptables -t nat -D POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip" 2>/dev/null
-    iptables -t nat -D POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip" 2>/dev/null
+    # 清除舊的規則，確保未設置的端口無法通行
+    iptables -t nat -F
+    iptables -F FORWARD
 
     # 添加新的iptables規則
     echo "正在配置中轉規則，目標IP: $target_ip, 端口範圍: $start_port-$end_port"
 
-    # 允許 TCP 和 UDP 流量的轉發
+    # 允許所有來自外部的 TCP 流量的轉發
     iptables -I FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
-    iptables -I FORWARD -p udp --dport "$start_port":"$end_port" -j ACCEPT
+    # 允許所有來自外部的 UDP 流量的轉發
+    iptables -I FORWARD -p udp -j ACCEPT
 
     # 允許已建立和相關的連接，確保返回流量能正確通過
     iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 
     # DNAT 將進入的連接轉發到目標IP
     iptables -t nat -A PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
-    iptables -t nat -A PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
+    iptables -t nat -A PREROUTING -p udp -j DNAT --to-destination "$target_ip"
 
     # SNAT 修改源地址為本地內網地址，確保回覆能正確返回
     iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
-    iptables -t nat -A POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
+    iptables -t nat -A POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip"
 
     echo "中轉規則配置完成。"
   else
@@ -107,26 +103,6 @@ clear_all_rules() {
   iptables -t nat -F
   iptables -F FORWARD
   echo "所有防火牆規則已清除。"
-}
-
-# 清除指定端口設置的函數
-clear_specific_nat() {
-  echo "当前 NAT 规则 (PREROUTING, POSTROUTING, FORWARD)："
-  iptables -t nat -L PREROUTING --line-numbers
-  iptables -t nat -L POSTROUTING --line-numbers
-  iptables -L FORWARD --line-numbers
-
-  read -p "请输入要删除的规则行号: " line_number
-  if [[ -n $line_number ]]; then
-    # 删除 PREROUTING 和 POSTROUTING 中的指定规则
-    iptables -t nat -D PREROUTING $line_number 2>/dev/null && echo "PREROUTING 规则已删除"
-    iptables -t nat -D POSTROUTING $line_number 2>/dev/null && echo "POSTROUTING 规则已删除"
-
-    # 删除 FORWARD 中的指定规则
-    iptables -D FORWARD $line_number 2>/dev/null && echo "FORWARD 规则已删除"
-  else
-    echo "未输入有效的规则行号。返回主菜单。"
-  fi
 }
 
 # 主循環
@@ -144,7 +120,7 @@ while true; do
       clear_all_rules
       ;;
     4)
-      clear_specific_nat
+      echo "清除指定端口的功能暫時停用，請使用選項 3 清除所有設置。"
       ;;
     5)
       echo "退出程序。"
