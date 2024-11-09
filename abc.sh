@@ -57,9 +57,6 @@ detect_internal_ip() {
   echo "$ip_addr"
 }
 
-# 記錄規則的文件
-RULES_FILE="/var/log/iptables_rules.log"
-
 # 添加中轉規則的函數
 add_forward_rule() {
   read -p "請輸入需要被中轉的目標IP地址: " target_ip
@@ -71,26 +68,23 @@ add_forward_rule() {
 
   # 驗證輸入是否為有效的端口範圍
   if [[ $start_port -gt 0 && $start_port -le 65535 && $end_port -gt 0 && $end_port -le 65535 && $start_port -le $end_port ]]; then
+    # 清除舊的規則，確保未設置的端口無法通行
+    iptables -t nat -F
+    iptables -F FORWARD
+
     # 添加新的iptables規則
     echo "正在配置中轉規則，目標IP: $target_ip, 端口範圍: $start_port-$end_port"
 
     # 允許所有來自外部的 TCP 和 UDP 流量的轉發
-    iptables -I FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
-    iptables -I FORWARD -p udp --dport "$start_port":"$end_port" -j ACCEPT
+    iptables -I FORWARD -i eth0 -j ACCEPT
 
-    # 允許已建立和相關的連接，確保返回流量能正確通過
-    iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+    # SNAT 修改源地址為本地內網地址
+    iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
+    iptables -t nat -A POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
 
     # DNAT 將進入的連接轉發到目標IP
     iptables -t nat -A PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
     iptables -t nat -A PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
-
-    # SNAT 修改源地址為本地內網地址，確保回覆能正確返回
-    iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
-    iptables -t nat -A POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
-
-    # 記錄規則到文件中
-    echo "$target_ip $start_port $end_port $local_ip" >> "$RULES_FILE"
 
     echo "中轉規則配置完成。"
   else
@@ -103,49 +97,7 @@ clear_all_rules() {
   echo "正在清除所有防火牆規則..."
   iptables -t nat -F
   iptables -F FORWARD
-  # 清除記錄文件
-  > "$RULES_FILE"
   echo "所有防火牆規則已清除。"
-}
-
-# 清除指定端口設置的函數
-clear_specific_rule() {
-  if [[ ! -f "$RULES_FILE" ]]; then
-    echo "沒有找到任何記錄的規則。"
-    return
-  fi
-
-  echo "以下是當前已設置的規則:"
-  cat -n "$RULES_FILE"
-  read -p "請選擇要清除的規則編號: " rule_number
-
-  rule=$(sed -n "${rule_number}p" "$RULES_FILE")
-  if [[ -z "$rule" ]]; then
-    echo "無效的規則編號。"
-    return
-  fi
-
-  target_ip=$(echo "$rule" | awk '{print $1}')
-  start_port=$(echo "$rule" | awk '{print $2}')
-  end_port=$(echo "$rule" | awk '{print $3}')
-  local_ip=$(echo "$rule" | awk '{print $4}')
-
-  echo "正在清除端口範圍: $start_port-$end_port 的防火牆規則..."
-
-  # 清除指定端口範圍的 FORWARD 規則
-  iptables -D FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
-  iptables -D FORWARD -p udp --dport "$start_port":"$end_port" -j ACCEPT
-
-  # 清除指定端口範圍的 PREROUTING 和 POSTROUTING 規則
-  iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
-  iptables -t nat -D PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
-  iptables -t nat -D POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
-  iptables -t nat -D POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
-
-  # 從記錄文件中移除規則
-  sed -i "${rule_number}d" "$RULES_FILE"
-
-  echo "指定的防火牆規則已清除。"
 }
 
 # 主循環
@@ -163,7 +115,7 @@ while true; do
       clear_all_rules
       ;;
     4)
-      clear_specific_rule
+      echo "清除指定端口的功能暫時停用，請使用選項 3 清除所有設置。"
       ;;
     5)
       echo "退出程序。"
