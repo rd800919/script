@@ -33,6 +33,27 @@ function setup_firewall {
     echo "防火墙设置和 IP 转发配置已完成！"
 }
 
+# 自动检测内网 IP 和网卡名称
+function detect_internal_ip {
+    local ip_addr
+    local interface=$(ip -4 route ls | grep default | awk '{print $5}' | head -1)
+    
+    if [[ -z "$interface" ]]; then
+        echo "未能自动检测到网卡。请手动输入内网 IP。"
+        return 1
+    fi
+
+    ip_addr=$(ip -4 addr show "$interface" | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+    
+    if [[ -z "$ip_addr" ]]; then
+        echo "未能自动检测到内网 IP，请手动输入。"
+        return 1
+    fi
+
+    echo "$ip_addr"
+    return 0
+}
+
 # 配置端口转发
 function configure_nat {
     read -p "请输入需要中转的外部 IP: " target_ip
@@ -40,9 +61,13 @@ function configure_nat {
     read -p "请输入TCP/UDP结束端口: " end_port
     read -p "请输入内网 IP 地址（直接按 Enter 自动检测）: " internal_ip
 
-    # 如果用户未输入内网 IP 地址，自动检测 eth0 网卡的内网 IP
+    # 如果用户未输入内网 IP 地址，自动检测网卡 IP
     if [ -z "$internal_ip" ]; then
-        internal_ip=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+        internal_ip=$(detect_internal_ip)
+        if [ -z "$internal_ip" ]; then
+            echo "无法检测到内网 IP。请手动输入有效的内网 IP。"
+            return 1
+        fi
         echo "检测到的内网 IP 地址: $internal_ip"
     fi
 
