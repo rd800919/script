@@ -74,7 +74,7 @@ add_forward_rule() {
     # 添加新的iptables規則
     echo "正在配置中轉規則，目標IP: $target_ip, 端口範圍: $start_port-$end_port"
 
-    # 允許轉發所有流量（來自外部的接口流量）
+    # 允許轉發來自所有接口的流量
     iptables -I FORWARD -i eth0 -j ACCEPT
 
     # SNAT 修改源地址為本地內網地址
@@ -82,8 +82,8 @@ add_forward_rule() {
     iptables -t nat -A POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
 
     # DNAT 將進入的連接轉發到目標IP
-    iptables -t nat -A PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip:$start_port-$end_port"
-    iptables -t nat -A PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip:$start_port-$end_port"
+    iptables -t nat -A PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
+    iptables -t nat -A PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
 
     echo "中轉規則配置完成。"
   else
