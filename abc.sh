@@ -86,8 +86,8 @@ add_forward_rule() {
     iptables -t nat -A PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
 
     # SNAT 修改源地址為本地內網地址，確保回覆能正確返回
-    iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
-    iptables -t nat -A POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
+    iptables -t nat -A POSTROUTING -s "$local_ip" -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j MASQUERADE
+    iptables -t nat -A POSTROUTING -s "$local_ip" -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j MASQUERADE
 
     echo "中轉規則配置完成。"
   else
