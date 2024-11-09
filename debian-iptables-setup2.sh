@@ -116,7 +116,7 @@ function clear_specific_nat {
     else
         echo "未输入有效的规则行号。返回主菜单。"
     fi
-    # 强制保存
+    # 保存更改
     iptables-save > /etc/iptables/rules.v4
     ip6tables-save > /etc/iptables/rules.v6
     systemctl restart netfilter-persistent
@@ -132,7 +132,7 @@ function clear_all_nat {
     iptables -I INPUT -p tcp --dport 22 -j ACCEPT
     iptables -P FORWARD DROP  # 确保默认的 FORWARD 策略为拒绝
 
-    # 强制保存
+    # 保存更改
     iptables-save > /etc/iptables/rules.v4
     ip6tables-save > /etc/iptables/rules.v6
     systemctl restart netfilter-persistent
