@@ -6,7 +6,8 @@ function setup_firewall {
     apt update -y && apt upgrade -y -o 'APT::Get::Assume-Yes=true'
 
     echo "确保 iptables 服务已安装并允许 SSH..."
-    apt install -y iptables iptables-persistent
+    # 使用非交互模式安装 iptables 和 iptables-persistent
+    DEBIAN_FRONTEND=noninteractive apt install -y iptables iptables-persistent
 
     # 启用并启动 iptables-persistent 以持久化规则
     systemctl enable netfilter-persistent
