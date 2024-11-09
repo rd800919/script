@@ -26,7 +26,8 @@ function setup_firewall {
     iptables -t nat -F
 
     # 保存当前 iptables 配置
-    netfilter-persistent save
+    iptables-save > /etc/iptables/rules.v4
+    ip6tables-save > /etc/iptables/rules.v6
     systemctl restart netfilter-persistent
 
     echo "防火墙设置和 IP 转发配置已完成！"
@@ -92,7 +93,8 @@ function configure_nat {
     iptables -I FORWARD -p udp --dport $start_port:$end_port -j ACCEPT
 
     # 保存规则
-    netfilter-persistent save
+    iptables-save > /etc/iptables/rules.v4
+    ip6tables-save > /etc/iptables/rules.v6
     echo "转发设置已完成!"
 }
 
@@ -114,8 +116,9 @@ function clear_specific_nat {
     else
         echo "未输入有效的规则行号。返回主菜单。"
     fi
-    # 强制保存并重启 netfilter-persistent
-    netfilter-persistent save
+    # 强制保存
+    iptables-save > /etc/iptables/rules.v4
+    ip6tables-save > /etc/iptables/rules.v6
     systemctl restart netfilter-persistent
 }
 
@@ -129,8 +132,9 @@ function clear_all_nat {
     iptables -I INPUT -p tcp --dport 22 -j ACCEPT
     iptables -P FORWARD DROP  # 确保默认的 FORWARD 策略为拒绝
 
-    # 强制保存并重启 netfilter-persistent
-    netfilter-persistent save
+    # 强制保存
+    iptables-save > /etc/iptables/rules.v4
+    ip6tables-save > /etc/iptables/rules.v6
     systemctl restart netfilter-persistent
     echo "所有转发规则已清除并重新设置基本转发规则!"
 }
