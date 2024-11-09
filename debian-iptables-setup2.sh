@@ -142,7 +142,7 @@ function clear_all_nat {
 # 主菜单
 function display_menu {
     clear
-    echo "脚本由 BYY 设计-v008"
+    echo "脚本由 BYY 设计-v009"
     echo "WeChat: x7077796"
     echo "============================"
     echo "选择要执行的操作："
