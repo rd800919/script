@@ -3,7 +3,7 @@
 # 设置基本的防火墙配置和 IP 转发
 function setup_firewall {
     echo "更新系统中..."
-    apt update && apt upgrade -y
+    apt update -y && apt upgrade -y -o 'APT::Get::Assume-Yes=true'
 
     echo "确保 iptables 服务已安装并允许 SSH..."
     apt install -y iptables iptables-persistent
