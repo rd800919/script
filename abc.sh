@@ -76,18 +76,18 @@ add_forward_rule() {
 
     # 允許所有來自外部的 TCP 和 UDP 流量的轉發
     iptables -I FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
-    iptables -I FORWARD -p udp -j ACCEPT  # 允許所有的 UDP 流量進行轉發
+    iptables -I FORWARD -p udp --dport "$start_port":"$end_port" -j ACCEPT
 
     # 允許已建立和相關的連接，確保返回流量能正確通過
     iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 
     # DNAT 將進入的連接轉發到目標IP
     iptables -t nat -A PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
-    iptables -t nat -A PREROUTING -p udp -j DNAT --to-destination "$target_ip"  # 允許所有的 UDP 轉發到目標IP
+    iptables -t nat -A PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
 
     # SNAT 修改源地址為本地內網地址，確保回覆能正確返回
     iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
-    iptables -t nat -A POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip"  # 對所有的 UDP 轉發進行源地址修改
+    iptables -t nat -A POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
 
     # 記錄規則到文件中
     echo "$target_ip $start_port $end_port" >> "$RULES_FILE"
@@ -136,10 +136,10 @@ clear_specific_rule() {
   iptables -D FORWARD -p udp --dport "$start_port":"$end_port" -j ACCEPT
 
   # 清除指定端口範圍的 PREROUTING 和 POSTROUTING 規則
-  iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT
-  iptables -t nat -D PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT
-  iptables -t nat -D POSTROUTING -p tcp --dport "$start_port":"$end_port" -j SNAT
-  iptables -t nat -D POSTROUTING -p udp --dport "$start_port":"$end_port" -j SNAT
+  iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
+  iptables -t nat -D PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
+  iptables -t nat -D POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
+  iptables -t nat -D POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
 
   # 從記錄文件中移除規則
   sed -i "${rule_number}d" "$RULES_FILE"
