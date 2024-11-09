@@ -61,7 +61,7 @@ detect_internal_ip() {
 add_forward_rule() {
   read -p "請輸入需要被中轉的目標IP地址: " target_ip
   read -p "請輸入起始轉發端口: " start_port
-  read -p "請輸入結尾轉發端口: " end_port"
+  
 
   # 自動獲取內網地址
   local_ip=$(detect_internal_ip)
@@ -112,7 +112,7 @@ clear_all_rules() {
 
 # 清除指定端口設置的函數
 clear_specific_nat() {
-  echo "当前 NAT 规则 (PREROUTING、POSTROUTING 和 FORWARD)："
+  echo "当前 NAT 规则 (PREROUTING, POSTROUTING, FORWARD)："
   iptables -t nat -L PREROUTING --line-numbers
   iptables -t nat -L POSTROUTING --line-numbers
   iptables -L FORWARD --line-numbers
