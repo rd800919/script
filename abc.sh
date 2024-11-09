@@ -3,11 +3,12 @@
 # 定義顯示選單的函數
 show_menu() {
   echo "=============================="
-  echo " 中轉服務器設置選單-2 "
+  echo " 中轉服務器設置選單 "
   echo "=============================="
   echo "1. 安裝或更新必要工具"
   echo "2. 設置中轉規則"
-  echo "3. 退出"
+  echo "3. 清除所有設置"
+  echo "4. 退出"
   echo "=============================="
 }
 
@@ -73,9 +74,12 @@ add_forward_rule() {
     # 添加新的iptables規則
     echo "正在配置中轉規則，目標IP: $target_ip, 端口範圍: $start_port-$end_port"
 
-    # 允許轉發指定端口範圍的TCP流量
+    # 允許轉發指定端口範圍的TCP和UDP流量
     iptables -A FORWARD -p tcp -d "$target_ip" --dport "$start_port":"$end_port" -j ACCEPT
     iptables -A FORWARD -p udp -d "$target_ip" --dport "$start_port":"$end_port" -j ACCEPT
+
+    # 允許已建立和相關的連接，確保返回流量能正確通過
+    iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 
     # DNAT 將進入的連接轉發到目標IP
     iptables -t nat -A PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
@@ -91,10 +95,18 @@ add_forward_rule() {
   fi
 }
 
+# 清除所有設置的函數
+clear_all_rules() {
+  echo "正在清除所有防火牆規則..."
+  iptables -t nat -F
+  iptables -F FORWARD
+  echo "所有防火牆規則已清除。"
+}
+
 # 主循環
 while true; do
   show_menu
-  read -p "請選擇一個選項 (1-3): " choice
+  read -p "請選擇一個選項 (1-4): " choice
   case $choice in
     1)
       install_update_tools
@@ -103,11 +115,14 @@ while true; do
       add_forward_rule
       ;;
     3)
+      clear_all_rules
+      ;;
+    4)
       echo "退出程序。"
       exit 0
       ;;
     *)
-      echo "無效的選項，請輸入 1, 2 或 3。"
+      echo "無效的選項，請輸入 1, 2, 3 或 4。"
       ;;
   esac
 done
