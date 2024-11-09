@@ -19,9 +19,6 @@ function setup_firewall {
     echo "net.ipv4.ip_forward = 1" | tee -a /etc/sysctl.conf
     sysctl -p
 
-    # 添加转发流量规则，仅需运行一次
-    iptables -I FORWARD -i eth0 -j ACCEPT
-
     # 保存当前 iptables 配置
     netfilter-persistent save
     systemctl restart netfilter-persistent
@@ -50,6 +47,10 @@ function configure_nat {
     # 配置 SNAT 规则（出站流量源地址转换）
     iptables -t nat -A POSTROUTING -d $target_ip -p tcp -m tcp --dport $start_port:$end_port -j SNAT --to-source $internal_ip
     iptables -t nat -A POSTROUTING -d $target_ip -p udp -m udp --dport $start_port:$end_port -j SNAT --to-source $internal_ip
+
+    # 精确 FORWARD 规则以仅允许特定端口范围
+    iptables -A FORWARD -p tcp --dport $start_port:$end_port -j ACCEPT
+    iptables -A FORWARD -p udp --dport $start_port:$end_port -j ACCEPT
 
     # 保存规则
     netfilter-persistent save
@@ -80,9 +81,11 @@ function clear_all_nat {
     echo "清除所有 NAT 转发规则..."
     iptables -t nat -F
 
-    # 重新添加 SSH 规则和转发流量规则
+    # 重新添加 SSH 规则和限制 FORWARD 规则
     iptables -I INPUT -p tcp --dport 22 -j ACCEPT
-    iptables -I FORWARD -i eth0 -j ACCEPT
+    iptables -D FORWARD -i eth0 -j ACCEPT 2>/dev/null # 删除以前的全开放 FORWARD 规则
+    iptables -A FORWARD -p tcp --dport $start_port:$end_port -j ACCEPT
+    iptables -A FORWARD -p udp --dport $start_port:$end_port -j ACCEPT
 
     # 强制保存并重启 netfilter-persistent
     netfilter-persistent save
