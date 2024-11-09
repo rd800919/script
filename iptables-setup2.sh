@@ -2,9 +2,6 @@
 
 # 设置基本的防火墙配置和 IP 转发
 function setup_firewall {
-    echo "更新系统中..."
-    yum update -y
-
     echo "确保 iptables 服务已安装并允许 SSH..."
     yum install -y iptables-services
     systemctl enable iptables
