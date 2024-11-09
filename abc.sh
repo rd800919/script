@@ -68,9 +68,13 @@ add_forward_rule() {
 
   # 驗證輸入是否為有效的端口範圍
   if [[ $start_port -gt 0 && $start_port -le 65535 && $end_port -gt 0 && $end_port -le 65535 && $start_port -le $end_port ]]; then
-    # 清除舊的規則，確保未設置的端口無法通行
-    iptables -t nat -F
-    iptables -F FORWARD
+    # 檢查並清除與要設置的端口相關的舊規則，避免重複添加
+    iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip" 2>/dev/null
+    iptables -t nat -D PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip" 2>/dev/null
+    iptables -D FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT 2>/dev/null
+    iptables -D FORWARD -p udp -j ACCEPT 2>/dev/null
+    iptables -t nat -D POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip" 2>/dev/null
+    iptables -t nat -D POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip" 2>/dev/null
 
     # 添加新的iptables規則
     echo "正在配置中轉規則，目標IP: $target_ip, 端口範圍: $start_port-$end_port"
