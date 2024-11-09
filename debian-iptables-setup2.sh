@@ -34,7 +34,7 @@ function configure_nat {
     read -p "请输入需要中转的外部 IP: " target_ip
     read -p "请输入TCP/UDP起始端口: " start_port
     read -p "请输入TCP/UDP结束端口: " end_port
-    read -p "请输入内网 IP 地址（按 Enter 略过将会自动检测）: " internal_ip
+    read -p "请输入内网 IP 地址（直接按 Enter 自动检测）: " internal_ip
 
     # 如果用户未输入内网 IP 地址，自动检测 eth0 网卡的内网 IP
     if [ -z "$internal_ip" ]; then
@@ -70,7 +70,9 @@ function clear_specific_nat {
     else
         echo "未输入有效的规则行号。返回主菜单。"
     fi
+    # 强制保存并重启 netfilter-persistent
     netfilter-persistent save
+    systemctl restart netfilter-persistent
 }
 
 # 清除所有转发规则
@@ -82,15 +84,16 @@ function clear_all_nat {
     iptables -I INPUT -p tcp --dport 22 -j ACCEPT
     iptables -I FORWARD -i eth0 -j ACCEPT
 
-    # 保存规则
+    # 强制保存并重启 netfilter-persistent
     netfilter-persistent save
+    systemctl restart netfilter-persistent
     echo "所有转发规则已清除并重新设置基本转发规则!"
 }
 
 # 主菜单
 function display_menu {
     clear
-    echo "脚本由 BYY 设计-v003"
+    echo "脚本由 BYY 设计-v004"
     echo "WeChat: x7077796"
     echo "============================"
     echo "选择要执行的操作："
