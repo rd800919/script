@@ -105,6 +105,26 @@ clear_all_rules() {
   echo "所有防火牆規則已清除。"
 }
 
+# 清除指定端口設置的函數
+clear_specific_nat() {
+  echo "当前 NAT 规则 (PREROUTING, POSTROUTING, FORWARD)："
+  iptables -t nat -L PREROUTING --line-numbers
+  iptables -t nat -L POSTROUTING --line-numbers
+  iptables -L FORWARD --line-numbers
+
+  read -p "请输入要删除的规则行号: " line_number
+  if [[ -n $line_number ]]; then
+    # 删除 PREROUTING 和 POSTROUTING 中的指定规则
+    iptables -t nat -D PREROUTING $line_number 2>/dev/null && echo "PREROUTING 规则已删除"
+    iptables -t nat -D POSTROUTING $line_number 2>/dev/null && echo "POSTROUTING 规则已删除"
+
+    # 删除 FORWARD 中的指定规则
+    iptables -D FORWARD $line_number 2>/dev/null && echo "FORWARD 规则已删除"
+  else
+    echo "未输入有效的规则行号。返回主菜单。"
+  fi
+}
+
 # 主循環
 while true; do
   show_menu
@@ -120,7 +140,7 @@ while true; do
       clear_all_rules
       ;;
     4)
-      echo "清除指定端口的功能暫時停用，請使用選項 3 清除所有設置。"
+      clear_specific_nat
       ;;
     5)
       echo "退出程序。"
