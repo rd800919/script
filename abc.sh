@@ -91,6 +91,8 @@ add_forward_rule() {
     iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
     iptables -t nat -A POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip"
 
+    echo "$target_ip $start_port $end_port" >> /var/log/iptables_rules.log
+
     echo "中轉規則配置完成。"
   else
     echo "無效的端口範圍，請確保輸入的端口在 1 到 65535 之間，且起始端口小於或等於結束端口。"
@@ -102,7 +104,46 @@ clear_all_rules() {
   echo "正在清除所有防火牆規則..."
   iptables -t nat -F
   iptables -F FORWARD
+  > /var/log/iptables_rules.log
   echo "所有防火牆規則已清除。"
+}
+
+# 清除指定端口設置的函數
+clear_specific_rule() {
+  if [[ ! -f /var/log/iptables_rules.log ]]; then
+    echo "沒有找到任何記錄的規則。"
+    return
+  fi
+
+  echo "以下是當前已設置的規則:"
+  cat -n /var/log/iptables_rules.log
+  read -p "請選擇要清除的規則編號: " rule_number
+
+  rule=$(sed -n "${rule_number}p" /var/log/iptables_rules.log)
+  if [[ -z "$rule" ]]; then
+    echo "無效的規則編號。"
+    return
+  fi
+
+  target_ip=$(echo "$rule" | awk '{print $1}')
+  start_port=$(echo "$rule" | awk '{print $2}')
+  end_port=$(echo "$rule" | awk '{print $3}')
+
+  echo "正在清除端口範圍: $start_port-$end_port 的防火牆規則..."
+
+  # 清除指定端口範圍的 FORWARD 規則
+  iptables -D FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
+  iptables -D FORWARD -p udp --dport "$start_port":"$end_port" -j ACCEPT
+
+  # 清除指定端口範圍的 PREROUTING 和 POSTROUTING 規則
+  iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
+  iptables -t nat -D PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
+  iptables -t nat -D POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
+  iptables -t nat -D POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
+
+  sed -i "${rule_number}d" /var/log/iptables_rules.log
+
+  echo "指定的防火牆規則已清除。"
 }
 
 # 主循環
@@ -120,7 +161,7 @@ while true; do
       clear_all_rules
       ;;
     4)
-      echo "清除指定端口的功能暫時停用，請使用選項 3 清除所有設置。"
+      clear_specific_rule
       ;;
     5)
       echo "退出程序。"
