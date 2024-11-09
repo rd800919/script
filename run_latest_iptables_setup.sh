@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # 设置下载 URL
-URL="https://raw.githubusercontent.com/rd800919/script/refs/heads/main/debian-iptables-setup2.sh"
+URL="https://raw.githubusercontent.com/rd800919/script/refs/heads/main/abc.sh"
 
 # 设置保存的文件名
-FILE="debian-iptables-setup2.sh"
+FILE="abc.sh"
 
 # 确认并删除旧文件
 if [ -f "$FILE" ]; then
