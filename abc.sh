@@ -8,7 +8,8 @@ show_menu() {
   echo "1. 安裝或更新必要工具"
   echo "2. 設置中轉規則"
   echo "3. 清除所有設置"
-  echo "4. 退出"
+  echo "4. 清除指定的轉發端口"
+  echo "5. 退出"
   echo "=============================="
 }
 
@@ -67,10 +68,6 @@ add_forward_rule() {
 
   # 驗證輸入是否為有效的端口範圍
   if [[ $start_port -gt 0 && $start_port -le 65535 && $end_port -gt 0 && $end_port -le 65535 && $start_port -le $end_port ]]; then
-    # 清除舊的規則，確保未設置的端口無法通行
-    iptables -t nat -F
-    iptables -F FORWARD
-
     # 添加新的iptables規則
     echo "正在配置中轉規則，目標IP: $target_ip, 端口範圍: $start_port-$end_port"
 
@@ -103,10 +100,35 @@ clear_all_rules() {
   echo "所有防火牆規則已清除。"
 }
 
+# 清除指定端口設置的函數
+clear_specific_rule() {
+  read -p "請輸入需要清除的起始端口: " start_port
+  read -p "請輸入需要清除的結尾端口: " end_port
+
+  # 驗證輸入是否為有效的端口範圍
+  if [[ $start_port -gt 0 && $start_port -le 65535 && $end_port -gt 0 && $end_port -le 65535 && $start_port -le $end_port ]]; then
+    echo "正在清除端口範圍: $start_port-$end_port 的防火牆規則..."
+
+    # 清除指定端口範圍的 FORWARD 規則
+    iptables -D FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
+    iptables -D FORWARD -p udp --dport "$start_port":"$end_port" -j ACCEPT
+
+    # 清除指定端口範圍的 PREROUTING 和 POSTROUTING 規則
+    iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT
+    iptables -t nat -D PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT
+    iptables -t nat -D POSTROUTING -p tcp --dport "$start_port":"$end_port" -j SNAT
+    iptables -t nat -D POSTROUTING -p udp --dport "$start_port":"$end_port" -j SNAT
+
+    echo "指定的防火牆規則已清除。"
+  else
+    echo "無效的端口範圍，請確保輸入的端口在 1 到 65535 之間，且起始端口小於或等於結束端口。"
+  fi
+}
+
 # 主循環
 while true; do
   show_menu
-  read -p "請選擇一個選項 (1-4): " choice
+  read -p "請選擇一個選項 (1-5): " choice
   case $choice in
     1)
       install_update_tools
@@ -118,11 +140,14 @@ while true; do
       clear_all_rules
       ;;
     4)
+      clear_specific_rule
+      ;;
+    5)
       echo "退出程序。"
       exit 0
       ;;
     *)
-      echo "無效的選項，請輸入 1, 2, 3 或 4。"
+      echo "無效的選項，請輸入 1, 2, 3, 4 或 5。"
       ;;
   esac
 done
