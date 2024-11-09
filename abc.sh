@@ -90,7 +90,7 @@ add_forward_rule() {
     iptables -t nat -A POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
 
     # 記錄規則到文件中
-    echo "$target_ip $start_port $end_port" >> "$RULES_FILE"
+    echo "$target_ip $start_port $end_port $local_ip" >> "$RULES_FILE"
 
     echo "中轉規則配置完成。"
   else
@@ -128,6 +128,7 @@ clear_specific_rule() {
   target_ip=$(echo "$rule" | awk '{print $1}')
   start_port=$(echo "$rule" | awk '{print $2}')
   end_port=$(echo "$rule" | awk '{print $3}')
+  local_ip=$(echo "$rule" | awk '{print $4}')
 
   echo "正在清除端口範圍: $start_port-$end_port 的防火牆規則..."
 
