@@ -21,7 +21,7 @@ if wget -O "$FILE" "$URL"; then
     chmod +x "$FILE"
 
     # 运行脚本
-    echo "运行脚本..."
+    echo "运行脚本...2"
     ./"$FILE"
 else
     echo "下载失败，请检查网络连接或URL是否正确。"
