@@ -3,7 +3,7 @@
 # 定义显示菜单的函数
 show_menu() {
   echo "=============================="
-  echo " 中转服务器设置菜单2 "
+  echo " 中转服务器设置菜单3 "
   echo "=============================="
   echo "1. 安装或更新必要工具"
   echo "2. 设置中转规则"
@@ -119,6 +119,12 @@ add_forward_rule() {
 
 # 清除所有设置的函数
 clear_all_rules() {
+  read -p "确定要清除所有防火墙规则吗？(y/n): " confirm
+  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+    echo "操作已取消。"
+    return
+  fi
+
   echo "正在清除所有防火墙规则..."
   iptables -t nat -F
   iptables -F FORWARD
@@ -136,8 +142,11 @@ clear_prerouting_postrouting() {
   iptables -t nat -L PREROUTING --line-numbers
   iptables -t nat -L POSTROUTING --line-numbers
 
-  read -p "请输入要清除的规则行号: " rule_num
-  if [[ -n "$rule_num" ]]; then
+  read -p "请输入要清除的规则行号 (按Enter取消): " rule_num
+  if [[ -z "$rule_num" ]]; then
+    echo "操作已取消。"
+    return
+  elif [[ -n "$rule_num" ]]; then
     iptables -t nat -D PREROUTING $rule_num
     iptables -t nat -D POSTROUTING $rule_num
     echo "PREROUTING 和 POSTROUTING 规则已删除。"
