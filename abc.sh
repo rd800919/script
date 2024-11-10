@@ -66,34 +66,42 @@ add_forward_rule() {
   # 自動獲取內網地址
   local_ip=$(detect_internal_ip)
 
+  # 記錄 UDP 是否已經全局開啟
+  local udp_opened_file="/var/tmp/udp_opened"
+  udp_opened=false
+  if [[ -f "$udp_opened_file" ]]; then
+    udp_opened=true
+  fi
+
   # 驗證輸入是否為有效的端口範圍
   if [[ $start_port -gt 0 && $start_port -le 65535 && $end_port -gt 0 && $end_port -le 65535 && $start_port -le $end_port ]]; then
-    # 清除與當前端口範圍相關的舊規則，避免重複添加
-    echo "清除與當前端口範圍相關的舊規則..."
-    iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip" 2>/dev/null
-    iptables -t nat -D PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip" 2>/dev/null
-    iptables -D FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT 2>/dev/null
-    iptables -D FORWARD -p udp --dport "$start_port":"$end_port" -j ACCEPT 2>/dev/null
-    iptables -t nat -D POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip" 2>/dev/null
-    iptables -t nat -D POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip" 2>/dev/null
+    # 清除舊的規則，確保未設置的端口無法通行
+    iptables -t nat -F
+    iptables -F FORWARD
 
     # 添加新的iptables規則
     echo "正在配置中轉規則，目標IP: $target_ip, 端口範圍: $start_port-$end_port"
 
-    # 允許 TCP 和 UDP 流量的轉發
+    # 允許所有來自外部的 TCP 流量的轉發
     iptables -I FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
-    iptables -I FORWARD -p udp --dport "$start_port":"$end_port" -j ACCEPT
+
+    # 如果是第一次設置中轉規則，開啟全局 UDP 端口 1500-65535 的轉發
+    if [ "$udp_opened" = false ]; then
+      echo "正在配置 UDP 全局轉發，範圍: 1500-65535"
+      iptables -I FORWARD -p udp --dport 1500:65535 -j ACCEPT
+      touch "$udp_opened_file"
+    fi
 
     # 允許已建立和相關的連接，確保返回流量能正確通過
     iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 
     # DNAT 將進入的連接轉發到目標IP
     iptables -t nat -A PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
-    iptables -t nat -A PREROUTING -p udp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
+    iptables -t nat -A PREROUTING -p udp -j DNAT --to-destination "$target_ip"
 
     # SNAT 修改源地址為本地內網地址，確保回覆能正確返回
     iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
-    iptables -t nat -A POSTROUTING -d "$target_ip" -p udp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
+    iptables -t nat -A POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip"
 
     echo "中轉規則配置完成。"
   else
@@ -106,6 +114,10 @@ clear_all_rules() {
   echo "正在清除所有防火牆規則..."
   iptables -t nat -F
   iptables -F FORWARD
+
+  # 清除記錄 UDP 全局開啟的標誌
+  rm -f /var/tmp/udp_opened
+
   echo "所有防火牆規則已清除。"
 }
 
