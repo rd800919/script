@@ -3,7 +3,7 @@
 # 定义显示菜单的函数
 show_menu() {
   echo "=============================="
-  echo " 中转服务器设置菜单3 "
+  echo " 中转服务器设置菜单4 "
   echo "=============================="
   echo "1. 安装或更新必要工具"
   echo "2. 设置中转规则"
@@ -119,12 +119,6 @@ add_forward_rule() {
 
 # 清除所有设置的函数
 clear_all_rules() {
-  read -p "确定要清除所有防火墙规则吗？(y/n): " confirm
-  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-    echo "操作已取消。"
-    return
-  fi
-
   echo "正在清除所有防火墙规则..."
   iptables -t nat -F
   iptables -F FORWARD
