@@ -149,8 +149,8 @@ clear_specific_rule() {
     while iptables -t nat -C PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip" 2>/dev/null; do
       iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
     done
-    while iptables -t nat -C POSTROUTING -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip" 2>/dev/null; do
-      iptables -t nat -D POSTROUTING -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
+    while iptables -t nat -C POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip" 2>/dev/null; do
+      iptables -t nat -D POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
     done
 
     # 從文件中移除該規則
@@ -168,30 +168,3 @@ clear_specific_rule() {
     echo "無效的規則編號，請重試。"
   fi
 }
-
-# 主循環
-while true; do
-  show_menu
-  read -p "請選擇一個選項 (1-5): " choice
-  case $choice in
-    1)
-      install_update_tools
-      ;;
-    2)
-      add_forward_rule
-      ;;
-    3)
-      clear_all_rules
-      ;;
-    4)
-      clear_specific_rule
-      ;;
-    5)
-      echo "退出程序。"
-      exit 0
-      ;;
-    *)
-      echo "無效的選項，請輸入 1, 2, 3, 4 或 5。"
-      ;;
-  esac
-done
