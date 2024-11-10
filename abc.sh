@@ -3,13 +3,14 @@
 # 定義顯示選單的函數
 show_menu() {
   echo "=============================="
-  echo " 中轉服務器設置選單3 "
+  echo " 中轉服務器設置選單4 "
   echo "=============================="
   echo "1. 安裝或更新必要工具"
   echo "2. 設置中轉規則"
   echo "3. 清除所有設置"
   echo "4. 清除指定的轉發端口"
-  echo "5. 退出"
+  echo "5. 清除指定的 PREROUTING 和 POSTROUTING 規則"
+  echo "6. 退出"
   echo "=============================="
 }
 
@@ -168,3 +169,62 @@ clear_specific_rule() {
     echo "無效的規則編號，請重試。"
   fi
 }
+
+# 清除指定的 PREROUTING 和 POSTROUTING 規則的函數
+clear_prerouting_postrouting() {
+  echo "當前的 PREROUTING 規則:"
+  iptables -t nat -L PREROUTING --line-numbers
+
+  echo "當前的 POSTROUTING 規則:"
+  iptables -t nat -L POSTROUTING --line-numbers
+
+  read -p "請輸入要清除的 PREROUTING 規則行號: " prerouting_num
+  if [[ -n "$prerouting_num" ]]; then
+    iptables -t nat -D PREROUTING $prerouting_num
+    echo "PREROUTING 規則已刪除。"
+  else
+    echo "無效的 PREROUTING 規則行號，請重試。"
+  fi
+
+  read -p "請輸入要清除的 POSTROUTING 規則行號: " postrouting_num
+  if [[ -n "$postrouting_num" ]]; then
+    iptables -t nat -D POSTROUTING $postrouting_num
+    echo "POSTROUTING 規則已刪除。"
+  else
+    echo "無效的 POSTROUTING 規則行號，請重試。"
+  fi
+
+  # 保存變更以確保重啟後生效
+  iptables-save > /etc/iptables/rules.v4
+  ip6tables-save > /etc/iptables/rules.v6
+}
+
+# 主循環
+while true; do
+  show_menu
+  read -p "請選擇一個選項 (1-6): " choice
+  case $choice in
+    1)
+      install_update_tools
+      ;;
+    2)
+      add_forward_rule
+      ;;
+    3)
+      clear_all_rules
+      ;;
+    4)
+      clear_specific_rule
+      ;;
+    5)
+      clear_prerouting_postrouting
+      ;;
+    6)
+      echo "退出程序。"
+      exit 0
+      ;;
+    *)
+      echo "無效的選項，請輸入 1, 2, 3, 4, 5 或 6。"
+      ;;
+  esac
+done
