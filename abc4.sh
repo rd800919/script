@@ -84,11 +84,13 @@ add_forward_rule() {
     # 允许所有来自外部的 TCP 流量的转发
     iptables -I FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
 
-    # 如果是第一次设置中转规则，开启全局 UDP 端口 1500-65535 的转发
+    # 如果是第一次设置中转规则，且UDP规则尚未添加，开启全局 UDP 端口 1500-65535 的转发
     if [ "$udp_opened" = false ]; then
-      echo "正在配置 UDP 全局转发，范围: 1500-65535"
-      iptables -I FORWARD -p udp --dport 1500:65535 -j ACCEPT
-      touch "$udp_opened_file"
+      if ! iptables -C FORWARD -p udp --dport 1500:65535 -j ACCEPT 2>/dev/null; then
+        echo "正在配置 UDP 全局转发，范围: 1500-65535"
+        iptables -I FORWARD -p udp --dport 1500:65535 -j ACCEPT
+        touch "$udp_opened_file"
+      fi
     fi
 
     # 允许已建立和相关的连接，确保返回流量能正确通过
@@ -96,11 +98,15 @@ add_forward_rule() {
 
     # DNAT 将进入的连接转发到目标IP
     iptables -t nat -A PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
-    iptables -t nat -A PREROUTING -p udp -j DNAT --to-destination "$target_ip"
+    if [ "$udp_opened" = false ]; then
+      iptables -t nat -A PREROUTING -p udp -j DNAT --to-destination "$target_ip"
+    fi
 
     # SNAT 修改源地址为本地内网地址，确保回复能正确返回
     iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
-    iptables -t nat -A POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip"
+    if [ "$udp_opened" = false ]; then
+      iptables -t nat -A POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip"
+    fi
 
     # 将规则记录到文件中以便后续管理
     echo "$start_port-$end_port $target_ip" >> /var/tmp/port_rules
