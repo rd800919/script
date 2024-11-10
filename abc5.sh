@@ -3,14 +3,13 @@
 # 定义显示菜单的函数
 show_menu() {
   echo "=============================="
-  echo " 中转服务器设置菜单2 "
+  echo " 中转服务器设置菜单 "
   echo "=============================="
   echo "1. 安装或更新必要工具"
   echo "2. 设置中转规则"
   echo "3. 清除所有设置"
   echo "4. 删除指定端口的转发规则"
-  echo "5. 查看当前中转规则"
-  echo "6. 退出"
+  echo "5. 退出"
   echo "=============================="
   echo "脚本由 BYY 设计-v001"
   echo "WeChat: x7077796"
@@ -82,45 +81,31 @@ add_forward_rule() {
     # 添加新的iptables规则
     echo "正在配置中转规则，目标IP: $target_ip, 端口范围: $start_port-$end_port"
 
-    # 检查并添加新的 FORWARD 规则，确保没有重复
-    if ! iptables -C FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT 2>/dev/null; then
-      iptables -A FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
-    fi
+    # 允许所有来自外部的 TCP 流量的转发
+    iptables -I FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
 
     # 如果是第一次设置中转规则，且UDP规则尚未添加，开启全局 UDP 端口 1500-65535 的转发
     if [ "$udp_opened" = false ]; then
       if ! iptables -C FORWARD -p udp --dport 1500:65535 -j ACCEPT 2>/dev/null; then
         echo "正在配置 UDP 全局转发，范围: 1500-65535"
-        iptables -A FORWARD -p udp --dport 1500:65535 -j ACCEPT
+        iptables -I FORWARD -p udp --dport 1500:65535 -j ACCEPT
         touch "$udp_opened_file"
       fi
     fi
 
     # 允许已建立和相关的连接，确保返回流量能正确通过
-    if ! iptables -C FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null; then
-      iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-    fi
+    iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 
     # DNAT 将进入的连接转发到目标IP
-    if ! iptables -t nat -C PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip" 2>/dev/null; then
-      iptables -t nat -A PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
-    fi
-
+    iptables -t nat -A PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
     if [ "$udp_opened" = false ]; then
-      if ! iptables -t nat -C PREROUTING -p udp -j DNAT --to-destination "$target_ip" 2>/dev/null; then
-        iptables -t nat -A PREROUTING -p udp -j DNAT --to-destination "$target_ip"
-      fi
+      iptables -t nat -A PREROUTING -p udp -j DNAT --to-destination "$target_ip"
     fi
 
     # SNAT 修改源地址为本地内网地址，确保回复能正确返回
-    if ! iptables -t nat -C POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip" 2>/dev/null; then
-      iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
-    fi
-
+    iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
     if [ "$udp_opened" = false ]; then
-      if ! iptables -t nat -C POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip" 2>/dev/null; then
-        iptables -t nat -A POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip"
-      fi
+      iptables -t nat -A POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip"
     fi
 
     # 将规则记录到文件中以便后续管理
@@ -134,12 +119,6 @@ add_forward_rule() {
 
 # 清除所有设置的函数
 clear_all_rules() {
-  read -p "确定要清除所有防火墙规则吗？(y/n): " confirm
-  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-    echo "操作已取消。"
-    return
-  fi
-
   echo "正在清除所有防火墙规则..."
   iptables -t nat -F
   iptables -F FORWARD
@@ -157,11 +136,8 @@ clear_prerouting_postrouting() {
   iptables -t nat -L PREROUTING --line-numbers
   iptables -t nat -L POSTROUTING --line-numbers
 
-  read -p "请输入要清除的规则行号 (按Enter取消): " rule_num
-  if [[ -z "$rule_num" ]]; then
-    echo "操作已取消。"
-    return
-  elif [[ -n "$rule_num" ]]; then
+  read -p "请输入要清除的规则行号: " rule_num
+  if [[ -n "$rule_num" ]]; then
     iptables -t nat -D PREROUTING $rule_num
     iptables -t nat -D POSTROUTING $rule_num
     echo "PREROUTING 和 POSTROUTING 规则已删除。"
@@ -174,20 +150,10 @@ clear_prerouting_postrouting() {
   ip6tables-save > /etc/iptables/rules.v6
 }
 
-# 查看当前中转规则的函数
-view_current_rules() {
-  echo "当前的中转规则:"
-  if [[ -f /var/tmp/port_rules ]]; then
-    cat /var/tmp/port_rules
-  else
-    echo "没有已设置的中转规则。"
-  fi
-}
-
 # 主循环
 while true; do
   show_menu
-  read -p "请选择一个选项 (1-6): " choice
+  read -p "请选择一个选项 (1-5): " choice
   case $choice in
     1)
       install_update_tools
@@ -202,14 +168,11 @@ while true; do
       clear_prerouting_postrouting
       ;;
     5)
-      view_current_rules
-      ;;
-    6)
       echo "退出程序。"
       exit 0
       ;;
     *)
-      echo "无效的选项，请输入 1, 2, 3, 4, 5 或 6。"
+      echo "无效的选项，请输入 1, 2, 3, 4 或 5。"
       ;;
   esac
 done
