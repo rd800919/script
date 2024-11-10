@@ -3,7 +3,7 @@
 # 定義顯示選單的函數
 show_menu() {
   echo "=============================="
-  echo " 中轉服務器設置選單2 "
+  echo " 中轉服務器設置選單 "
   echo "=============================="
   echo "1. 安裝或更新必要工具"
   echo "2. 設置中轉規則"
@@ -99,6 +99,9 @@ add_forward_rule() {
     iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
     iptables -t nat -A POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip"
 
+    # 將規則記錄到文件中以便後續管理
+    echo "$start_port-$end_port" >> /var/tmp/port_rules
+
     echo "中轉規則配置完成。"
   else
     echo "無效的端口範圍，請確保輸入的端口在 1 到 65535 之間，且起始端口小於或等於結束端口。"
@@ -113,17 +116,27 @@ clear_all_rules() {
 
   # 清除記錄 UDP 全局開啟的標誌
   rm -f /var/tmp/udp_opened
+  rm -f /var/tmp/port_rules
 
   echo "所有防火牆規則已清除。"
 }
 
 # 清除指定的轉發端口的函數
 clear_specific_rule() {
-  read -p "請輸入要清除的起始轉發端口: " start_port
-  read -p "請輸入要清除的結尾轉發端口: " end_port
+  if [[ ! -f /var/tmp/port_rules ]]; then
+    echo "目前沒有任何已設定的轉發規則。"
+    return
+  fi
 
-  # 驗證輸入是否為有效的端口範圍
-  if [[ $start_port -gt 0 && $start_port -le 65535 && $end_port -gt 0 && $end_port -le 65535 && $start_port -le $end_port ]]; then
+  echo "當前的轉發規則:"
+  cat -n /var/tmp/port_rules
+
+  read -p "請選擇要清除的規則編號: " rule_number
+  selected_rule=$(sed -n "${rule_number}p" /var/tmp/port_rules)
+
+  if [[ -n "$selected_rule" ]]; then
+    start_port=$(echo "$selected_rule" | cut -d'-' -f1)
+    end_port=$(echo "$selected_rule" | cut -d'-' -f2)
     echo "正在清除 TCP 轉發規則，端口範圍: $start_port-$end_port"
 
     # 清除 FORWARD 中的 TCP 規則
@@ -133,9 +146,12 @@ clear_specific_rule() {
     iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT 2>/dev/null
     iptables -t nat -D POSTROUTING -p tcp --dport "$start_port":"$end_port" -j SNAT 2>/dev/null
 
+    # 從文件中移除該規則
+    sed -i "${rule_number}d" /var/tmp/port_rules
+
     echo "TCP 轉發規則已清除。"
   else
-    echo "無效的端口範圍，請確保輸入的端口在 1 到 65535 之間，且起始端口小於或等於結束端口。"
+    echo "無效的規則編號，請重試。"
   fi
 }
 
