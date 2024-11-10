@@ -117,6 +117,28 @@ clear_all_rules() {
   echo "所有防火牆規則已清除。"
 }
 
+# 清除指定的轉發端口的函數
+clear_specific_rule() {
+  read -p "請輸入要清除的起始轉發端口: " start_port
+  read -p "請輸入要清除的結尾轉發端口: " end_port
+
+  # 驗證輸入是否為有效的端口範圍
+  if [[ $start_port -gt 0 && $start_port -le 65535 && $end_port -gt 0 && $end_port -le 65535 && $start_port -le $end_port ]]; then
+    echo "正在清除 TCP 轉發規則，端口範圍: $start_port-$end_port"
+
+    # 清除 FORWARD 中的 TCP 規則
+    iptables -D FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
+    
+    # 清除 PREROUTING 和 POSTROUTING 中的 TCP 規則
+    iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT 2>/dev/null
+    iptables -t nat -D POSTROUTING -p tcp --dport "$start_port":"$end_port" -j SNAT 2>/dev/null
+
+    echo "TCP 轉發規則已清除。"
+  else
+    echo "無效的端口範圍，請確保輸入的端口在 1 到 65535 之間，且起始端口小於或等於結束端口。"
+  fi
+}
+
 # 主循環
 while true; do
   show_menu
@@ -132,7 +154,7 @@ while true; do
       clear_all_rules
       ;;
     4)
-      echo "清除指定端口的功能暫時停用，請使用選項 3 清除所有設置。"
+      clear_specific_rule
       ;;
     5)
       echo "退出程序。"
