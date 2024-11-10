@@ -3,7 +3,7 @@
 # 定义显示菜单的函数
 show_menu() {
   echo "=============================="
-  echo " 中转服务器设置菜单232 "
+  echo " 中转服务器设置菜单565 "
   echo "=============================="
   echo "1. 安装或更新必要工具"
   echo "2. 设置中转规则"
@@ -71,7 +71,7 @@ add_forward_rule() {
   local_ip=$(detect_internal_ip)
 
   # 记录 UDP 是否已经全局开启
-  local udp_opened_file="/var/tmp/udp_opened"
+  local udp_opened_file="/var/tmp/udp_opened_$target_ip"
   udp_opened=false
   if [[ -f "$udp_opened_file" ]]; then
     udp_opened=true
@@ -85,7 +85,7 @@ add_forward_rule() {
     # 允许所有来自外部的 TCP 流量的转发
     iptables -I FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
 
-    # 如果是第一次设置中转规则，且UDP规则尚未添加，开启全局 UDP 端口 1500-65535 的转发
+    # 如果是第一次设置该目标 IP 的中转规则，且UDP规则尚未添加，开启全局 UDP 端口 1500-65535 的转发
     if [ "$udp_opened" = false ]; then
       if ! iptables -C FORWARD -p udp --dport 1500:65535 -j ACCEPT 2>/dev/null; then
         echo "正在配置 UDP 全局转发，范围: 1500-65535"
@@ -131,7 +131,7 @@ clear_all_rules() {
   iptables -F FORWARD
 
   # 清除记录 UDP 全局开启的标志
-  rm -f /var/tmp/udp_opened
+  rm -f /var/tmp/udp_opened_*
   rm -f /var/tmp/port_rules
 
   echo "所有防火墙规则已清除。"
