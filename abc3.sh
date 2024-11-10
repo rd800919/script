@@ -8,9 +8,8 @@ show_menu() {
   echo "1. 安裝或更新必要工具"
   echo "2. 設置中轉規則"
   echo "3. 清除所有設置"
-  echo "4. 清除指定的轉發端口"
-  echo "5. 清除指定的 PREROUTING 和 POSTROUTING 規則"
-  echo "6. 退出"
+  echo "4. 清除指定的 PREROUTING 和 POSTROUTING 規則"
+  echo "5. 退出"
   echo "=============================="
 }
 
@@ -122,76 +121,19 @@ clear_all_rules() {
   echo "所有防火牆規則已清除。"
 }
 
-# 清除指定的轉發端口的函數
-clear_specific_rule() {
-  if [[ ! -f /var/tmp/port_rules ]]; then
-    echo "目前沒有任何已設定的轉發規則。"
-    return
-  fi
-
-  echo "當前的轉發規則:"
-  cat -n /var/tmp/port_rules
-
-  read -p "請選擇要清除的規則編號: " rule_number
-  selected_rule=$(sed -n "${rule_number}p" /var/tmp/port_rules)
-
-  if [[ -n "$selected_rule" ]]; then
-    start_port=$(echo "$selected_rule" | cut -d'-' -f1)
-    end_port=$(echo "$selected_rule" | cut -d'-' -f2)
-    target_ip=$(echo "$selected_rule" | awk '{print $2}')
-    echo "正在清除 TCP 轉發規則，端口範圍: $start_port-$end_port"
-
-    # 清除 FORWARD 中的 TCP 規則
-    while iptables -C FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT 2>/dev/null; do
-      iptables -D FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
-    done
-
-    # 清除 PREROUTING 和 POSTROUTING 中的 TCP 規則
-    while iptables -t nat -C PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip" 2>/dev/null; do
-      iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
-    done
-    while iptables -t nat -C POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip" 2>/dev/null; do
-      iptables -t nat -D POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
-    done
-
-    # 從文件中移除該規則
-    sed -i "${rule_number}d" /var/tmp/port_rules
-
-    # 確保保存防火牆規則的目錄存在
-    mkdir -p /etc/iptables
-
-    # 保存變更以確保重啟後生效
-    iptables-save > /etc/iptables/rules.v4
-    ip6tables-save > /etc/iptables/rules.v6
-
-    echo "TCP 轉發規則已清除。"
-  else
-    echo "無效的規則編號，請重試。"
-  fi
-}
-
 # 清除指定的 PREROUTING 和 POSTROUTING 規則的函數
 clear_prerouting_postrouting() {
-  echo "當前的 PREROUTING 規則:"
+  echo "當前的 PREROUTING 和 POSTROUTING 規則:"
   iptables -t nat -L PREROUTING --line-numbers
-
-  echo "當前的 POSTROUTING 規則:"
   iptables -t nat -L POSTROUTING --line-numbers
 
-  read -p "請輸入要清除的 PREROUTING 規則行號: " prerouting_num
-  if [[ -n "$prerouting_num" ]]; then
-    iptables -t nat -D PREROUTING $prerouting_num
-    echo "PREROUTING 規則已刪除。"
+  read -p "請輸入要清除的規則行號: " rule_num
+  if [[ -n "$rule_num" ]]; then
+    iptables -t nat -D PREROUTING $rule_num
+    iptables -t nat -D POSTROUTING $rule_num
+    echo "PREROUTING 和 POSTROUTING 規則已刪除。"
   else
-    echo "無效的 PREROUTING 規則行號，請重試。"
-  fi
-
-  read -p "請輸入要清除的 POSTROUTING 規則行號: " postrouting_num
-  if [[ -n "$postrouting_num" ]]; then
-    iptables -t nat -D POSTROUTING $postrouting_num
-    echo "POSTROUTING 規則已刪除。"
-  else
-    echo "無效的 POSTROUTING 規則行號，請重試。"
+    echo "無效的規則行號，請重試。"
   fi
 
   # 保存變更以確保重啟後生效
@@ -202,7 +144,7 @@ clear_prerouting_postrouting() {
 # 主循環
 while true; do
   show_menu
-  read -p "請選擇一個選項 (1-6): " choice
+  read -p "請選擇一個選項 (1-5): " choice
   case $choice in
     1)
       install_update_tools
@@ -214,17 +156,14 @@ while true; do
       clear_all_rules
       ;;
     4)
-      clear_specific_rule
-      ;;
-    5)
       clear_prerouting_postrouting
       ;;
-    6)
+    5)
       echo "退出程序。"
       exit 0
       ;;
     *)
-      echo "無效的選項，請輸入 1, 2, 3, 4, 5 或 6。"
+      echo "無效的選項，請輸入 1, 2, 3, 4 或 5。"
       ;;
   esac
 done
