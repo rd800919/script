@@ -3,13 +3,14 @@
 # 定义显示菜单的函数
 show_menu() {
   echo "=============================="
-  echo " 中转服务器设置菜单5 "
+  echo " 中转服务器设置菜单232 "
   echo "=============================="
   echo "1. 安装或更新必要工具"
   echo "2. 设置中转规则"
   echo "3. 清除所有设置"
   echo "4. 删除指定端口的转发规则"
-  echo "5. 退出"
+  echo "5. 查看当前中转规则"
+  echo "6. 退出"
   echo "=============================="
   echo "脚本由 BYY 设计-v001"
   echo "WeChat: x7077796"
@@ -119,6 +120,12 @@ add_forward_rule() {
 
 # 清除所有设置的函数
 clear_all_rules() {
+  read -p "确定要清除所有防火墙规则吗？(y/n): " confirm
+  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+    echo "操作已取消。"
+    return
+  fi
+
   echo "正在清除所有防火墙规则..."
   iptables -t nat -F
   iptables -F FORWARD
@@ -136,8 +143,11 @@ clear_prerouting_postrouting() {
   iptables -t nat -L PREROUTING --line-numbers
   iptables -t nat -L POSTROUTING --line-numbers
 
-  read -p "请输入要清除的规则行号: " rule_num
-  if [[ -n "$rule_num" ]]; then
+  read -p "请输入要清除的规则行号 (按Enter取消): " rule_num
+  if [[ -z "$rule_num" ]]; then
+    echo "操作已取消。"
+    return
+  elif [[ -n "$rule_num" ]]; then
     iptables -t nat -D PREROUTING $rule_num
     iptables -t nat -D POSTROUTING $rule_num
     echo "PREROUTING 和 POSTROUTING 规则已删除。"
@@ -150,10 +160,20 @@ clear_prerouting_postrouting() {
   ip6tables-save > /etc/iptables/rules.v6
 }
 
+# 查看当前中转规则的函数
+view_current_rules() {
+  echo "当前的中转规则:"
+  if [[ -f /var/tmp/port_rules ]]; then
+    cat /var/tmp/port_rules
+  else
+    echo "没有已设置的中转规则。"
+  fi
+}
+
 # 主循环
 while true; do
   show_menu
-  read -p "请选择一个选项 (1-5): " choice
+  read -p "请选择一个选项 (1-6): " choice
   case $choice in
     1)
       install_update_tools
@@ -168,11 +188,14 @@ while true; do
       clear_prerouting_postrouting
       ;;
     5)
+      view_current_rules
+      ;;
+    6)
       echo "退出程序。"
       exit 0
       ;;
     *)
-      echo "无效的选项，请输入 1, 2, 3, 4 或 5。"
+      echo "无效的选项，请输入 1, 2, 3, 4, 5 或 6。"
       ;;
   esac
 done
