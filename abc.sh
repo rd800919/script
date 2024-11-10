@@ -3,7 +3,7 @@
 # 定義顯示選單的函數
 show_menu() {
   echo "=============================="
-  echo " 中轉服務器設置選單5 "
+  echo " 中轉服務器設置選單6 "
   echo "=============================="
   echo "1. 安裝或更新必要工具"
   echo "2. 設置中轉規則"
@@ -154,6 +154,9 @@ clear_specific_rule() {
 
     # 從文件中移除該規則
     sed -i "${rule_number}d" /var/tmp/port_rules
+
+    # 確保保存防火牆規則的目錄存在
+    mkdir -p /etc/iptables
 
     # 保存變更以確保重啟後生效
     iptables-save > /etc/iptables/rules.v4
