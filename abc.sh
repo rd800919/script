@@ -3,7 +3,7 @@
 # 定義顯示選單的函數
 show_menu() {
   echo "=============================="
-  echo " 中轉服務器設置選單6 "
+  echo " 中轉服務器設置選單7 "
   echo "=============================="
   echo "1. 安裝或更新必要工具"
   echo "2. 設置中轉規則"
@@ -143,6 +143,11 @@ clear_specific_rule() {
     while iptables -C FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT 2>/dev/null; do
       iptables -D FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
     done
+
+    # 清除 RELATED, ESTABLISHED 規則
+    while iptables -C FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null; do
+      iptables -D FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+    done
     
     # 清除 PREROUTING 和 POSTROUTING 中的 TCP 規則
     while iptables -t nat -C PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination 2>/dev/null; do
@@ -190,7 +195,4 @@ while true; do
       exit 0
       ;;
     *)
-      echo "無效的選項，請輸入 1, 2, 3, 4 或 5。"
-      ;;
-  esac
-done
+     
