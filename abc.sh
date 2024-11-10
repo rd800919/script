@@ -3,7 +3,7 @@
 # 定義顯示選單的函數
 show_menu() {
   echo "=============================="
-  echo " 中轉服務器設置選單8 "
+  echo " 中轉服務器設置選單9 "
   echo "=============================="
   echo "1. 安裝或更新必要工具"
   echo "2. 設置中轉規則"
@@ -150,11 +150,11 @@ clear_specific_rule() {
     done
     
     # 清除 PREROUTING 和 POSTROUTING 中的 TCP 規則
-    while iptables -t nat -C PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination 2>/dev/null; do
-      iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT
+    while iptables -t nat -C PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip" 2>/dev/null; do
+      iptables -t nat -D PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
     done
-    while iptables -t nat -C POSTROUTING -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source 2>/dev/null; do
-      iptables -t nat -D POSTROUTING -p tcp --dport "$start_port":"$end_port" -j SNAT
+    while iptables -t nat -C POSTROUTING -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip" 2>/dev/null; do
+      iptables -t nat -D POSTROUTING -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
     done
 
     # 從文件中移除該規則
