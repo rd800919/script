@@ -12,17 +12,18 @@ show_menu() {
   echo -e "\e[32m5. 查看当前中转规则\e[0m"
   echo -e "\e[32m6. 退出\e[0m"
   echo -e "\e[36m==============================\e[0m"
-  echo -e "\e[35m脚本由 BYY 设计-v002\e[0m"
+  echo -e "\e[35m脚本由 BYY 设计-v003\e[0m"
   echo -e "\e[35mWeChat: x7077796\e[0m"
   echo -e "\e[36m==============================\e[0m"
+  echo ""
 }
 
 # 安装或更新必要工具的函数
 install_update_tools() {
   echo -e "\e[34m正在安装或更新必要的工具...\e[0m"
-  # 更新包管理器并安装iptables和net-tools（如果尚未安装）
-  apt update -y && apt upgrade -y -o 'APT::Get::Assume-Yes=true'
-  apt-get install -y iptables net-tools
+  # 更新包管理器并安装iptables、net-tools和iptables-persistent（如果尚未安装）
+  DEBIAN_FRONTEND=noninteractive apt update -y && apt upgrade -y -o 'APT::Get::Assume-Yes=true'
+  DEBIAN_FRONTEND=noninteractive apt-get install -y iptables net-tools iptables-persistent
   
   # 禁用 ufw 防火墙（如果存在且激活）
   if command -v ufw >/dev/null 2>&1; then
@@ -40,6 +41,7 @@ install_update_tools() {
   sysctl -p
   
   echo -e "\e[32m工具安装或更新完成。\e[0m"
+  echo ""
 }
 
 # 自动检测内网 IP 和网卡名称的函数
@@ -112,9 +114,15 @@ add_forward_rule() {
     # 将规则记录到文件中以便后续管理
     echo "$start_port-$end_port $target_ip" >> /var/tmp/port_rules
 
+    # 保存变更以确保重启后生效
+    iptables-save > /etc/iptables/rules.v4
+    ip6tables-save > /etc/iptables/rules.v6
+
     echo -e "\e[32m中转规则配置完成。\e[0m"
+    echo ""
   else
     echo -e "\e[31m无效的端口范围，请确保输入的端口在 1 到 65535 之间，且起始端口小于或等于结束端口。\e[0m"
+    echo ""
   fi
 }
 
@@ -128,7 +136,12 @@ clear_all_rules() {
   rm -f /var/tmp/udp_opened
   rm -f /var/tmp/port_rules
 
+  # 保存变更以确保重启后生效
+  iptables-save > /etc/iptables/rules.v4
+  ip6tables-save > /etc/iptables/rules.v6
+
   echo -e "\e[32m所有防火墙规则已清除。\e[0m"
+  echo ""
 }
 
 # 清除指定的 PREROUTING 和 POSTROUTING 规则的函数
@@ -136,6 +149,7 @@ clear_prerouting_postrouting() {
   echo -e "\e[36m当前的 PREROUTING 和 POSTROUTING 规则:\e[0m"
   iptables -t nat -L PREROUTING --line-numbers
   iptables -t nat -L POSTROUTING --line-numbers
+  echo ""
 
   read -p "请输入要清除的规则行号: " rule_num
   if [[ -n "$rule_num" ]]; then
@@ -149,6 +163,7 @@ clear_prerouting_postrouting() {
   # 保存变更以确保重启后生效
   iptables-save > /etc/iptables/rules.v4
   ip6tables-save > /etc/iptables/rules.v6
+  echo ""
 }
 
 # 查看当前中转规则的函数
@@ -159,12 +174,14 @@ view_current_rules() {
   else
     echo -e "\e[31m没有已设置的中转规则。\e[0m"
   fi
+  echo ""
 }
 
 # 主循环
 while true; do
   show_menu
   read -p "请选择一个选项 (1-6): " choice
+  echo ""
   case $choice in
     1)
       install_update_tools
