@@ -180,27 +180,25 @@ view_current_rules() {
 
 # 启动BBR的函数
 enable_bbr() {
-  echo -e "\e[33m启动 BBR 将会清除所有已设置的转发规则。\e[0m"
-  read -p "是否继续? (y/n): " confirm
-  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-    echo -e "\e[31m操作已取消。\e[0m"
-    return
-  fi
-
-  # 清除所有转发规则
-  clear_all_rules
-
-  # 启用 BBR
-  echo -e "\e[34m正在启用 BBR...\e[0m"
-  echo "net.core.default_qdisc=fq" | tee -a /etc/sysctl.conf
-  echo "net.ipv4.tcp_congestion_control=bbr" | tee -a /etc/sysctl.conf
-  sysctl -p
-
-  # 验证 BBR 是否启用
   if lsmod | grep -q "bbr"; then
-    echo -e "\e[32mBBR 已成功启用。\e[0m"
+    echo -e "\e[32mBBR 已经启用，无需再次启用。\e[0m"
   else
-    echo -e "\e[31mBBR 启用失败。\e[0m"
+    echo -e "\e[33m警告: 启动BBR将会清除所有现有的转发规则！\e[0m"
+    read -p "是否继续? (y/n): " confirm
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+      clear_all_rules
+      echo -e "\e[34m正在启用 BBR...\e[0m"
+      echo "net.core.default_qdisc=fq" | tee -a /etc/sysctl.conf
+      echo "net.ipv4.tcp_congestion_control=bbr" | tee -a /etc/sysctl.conf
+      sysctl -p
+      if lsmod | grep -q "bbr"; then
+        echo -e "\e[32mBBR 已成功启用。\e[0m"
+      else
+        echo -e "\e[31mBBR 启用失败。\e[0m"
+      fi
+    else
+      echo -e "\e[31m操作已取消。\e[0m"
+    fi
   fi
   echo ""
 }
