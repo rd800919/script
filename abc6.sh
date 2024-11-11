@@ -4,6 +4,15 @@
 UDP_OPENED_FILE="/var/tmp/udp_opened"
 PORT_RULES_FILE="/var/tmp/port_rules"
 
+# 检查是否具有root权限
+if [[ "$EUID" -ne 0 ]]; then
+  echo -e "\e[31m请以 root 权限运行此脚本。\e[0m"
+  exit 1
+fi
+
+# 捕获中断信号
+trap "echo -e '\e[31m程序被中断。\e[0m'; exit 1" SIGINT SIGTERM
+
 # 定义显示菜单的函数
 show_menu() {
   echo -e "\e[36m==============================\e[0m"
@@ -17,7 +26,7 @@ show_menu() {
   echo -e "\e[32m6. 启动BBR\e[0m"
   echo -e "\e[32m0. 退出\e[0m"
   echo -e "\e[36m==============================\e[0m"
-  echo -e "\e[35m脚本由 BYY 设计-v005\e[0m"
+  echo -e "\e[35m脚本由 BYY 设计-v006\e[0m"
   echo -e "\e[35mWeChat: x7077796\e[0m"
   echo -e "\e[36m==============================\e[0m"
   echo ""
@@ -89,7 +98,7 @@ detect_internal_ip() {
   echo "$ip_addr"
 }
 
-# 添加中转规则的函数
+# 添加中转规则的函数（优化）
 add_forward_rule() {
   read -p "请输入需要被中转的目标IP地址: " target_ip
   read -p "请输入起始转发端口: " start_port
@@ -97,17 +106,12 @@ add_forward_rule() {
 
   local_ip=$(detect_internal_ip)
 
-  udp_opened=false
-  if [[ -f "$UDP_OPENED_FILE" ]]; then
-    udp_opened=true
-  fi
-
   if [[ $start_port -gt 0 && $start_port -le 65535 && $end_port -gt 0 && $end_port -le 65535 && $start_port -le $end_port ]]; then
     echo -e "\e[34m正在配置中转规则，目标IP: $target_ip, 端口范围: $start_port-$end_port\e[0m"
 
-    iptables -I FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
+    iptables -I FORWARD -p tcp --dport "$start_port:$end_port" -j ACCEPT
 
-    if [ "$udp_opened" = false ]; then
+    if [[ ! -f "$UDP_OPENED_FILE" ]]; then
       if ! iptables -C FORWARD -p udp --dport 1500:65535 -j ACCEPT 2>/dev/null; then
         echo -e "\e[34m正在配置 UDP 全局转发，范围: 1500-65535\e[0m"
         iptables -I FORWARD -p udp --dport 1500:65535 -j ACCEPT
@@ -116,16 +120,8 @@ add_forward_rule() {
     fi
 
     iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-
-    iptables -t nat -A PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
-    if [ "$udp_opened" = false ]; then
-      iptables -t nat -A PREROUTING -p udp -j DNAT --to-destination "$target_ip"
-    fi
-
-    iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
-    if [ "$udp_opened" = false ]; then
-      iptables -t nat -A POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip"
-    fi
+    iptables -t nat -A PREROUTING -p tcp --dport "$start_port:$end_port" -j DNAT --to-destination "$target_ip"
+    iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port:$end_port" -j SNAT --to-source "$local_ip"
 
     echo "$start_port-$end_port $target_ip" >> "$PORT_RULES_FILE"
 
@@ -139,23 +135,53 @@ add_forward_rule() {
   fi
 }
 
+# 清除指定的 PREROUTING 和 POSTROUTING 规则的函数
+clear_prerouting_postrouting() {
+  echo -e "\e[36m当前的 PREROUTING 和 POSTROUTING 规则:\e[0m"
+  iptables -t nat -L PREROUTING --line-numbers
+  iptables -t nat -L POSTROUTING --line-numbers
+  echo ""
+
+  read -p "请输入要清除的规则行号: " rule_num
+  if [[ -n "$rule_num" ]]; then
+    iptables -t nat -D PREROUTING $rule_num
+    iptables -t nat -D POSTROUTING $rule_num
+    echo -e "\e[32mPREROUTING 和 POSTROUTING 规则已删除。\e[0m"
+  else
+    echo -e "\e[31m无效的规则行号，请重试。\e[0m"
+  fi
+
+  save_iptables_rules
+  echo ""
+}
+
+# 查看当前中转规则的函数
+view_current_rules() {
+  echo -e "\e[36m当前的中转规则:\e[0m"
+  if [[ -f "$PORT_RULES_FILE" ]]; then
+    cat "$PORT_RULES_FILE"
+  else
+    echo -e "\e[31m没有已设置的中转规则。\e[0m"
+  fi
+  echo ""
+}
+
 # 启动BBR的函数
 enable_bbr() {
-  if lsmod | grep -q "bbr"; then
+  if lsmod | grep -q 'bbr'; then
     echo -e "\e[32mBBR 已经启用，无需再次启用。\e[0m"
   else
-    echo -e "\e[33m警告: 启动BBR将会清除所有现有的转发规则！\e[0m"
+    echo -e "\e[33m启用BBR将清除所有现有的端口转发规则。\e[0m"
     read -p "是否继续? (y/n): " confirm
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
       clear_all_rules
-      echo -e "\e[34m正在启用 BBR...\e[0m"
-      echo "net.core.default_qdisc=fq" | tee -a /etc/sysctl.conf
-      echo "net.ipv4.tcp_congestion_control=bbr" | tee -a /etc/sysctl.conf
+      echo 'net.core.default_qdisc=fq' | tee -a /etc/sysctl.conf
+      echo 'net.ipv4.tcp_congestion_control=bbr' | tee -a /etc/sysctl.conf
       sysctl -p
-      if lsmod | grep -q "bbr"; then
+      if lsmod | grep -q 'bbr'; then
         echo -e "\e[32mBBR 已成功启用。\e[0m"
       else
-        echo -e "\e[31mBBR 启用失败。\e[0m"
+        echo -e "\e[31mBBR 启用失败，请检查配置。\e[0m"
       fi
     else
       echo -e "\e[31m操作已取消。\e[0m"
