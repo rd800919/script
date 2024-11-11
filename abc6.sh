@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# 定义常量
+UDP_OPENED_FILE="/var/tmp/udp_opened"
+PORT_RULES_FILE="/var/tmp/port_rules"
+
 # 定义显示菜单的函数
 show_menu() {
   echo -e "\e[36m==============================\e[0m"
@@ -13,7 +17,7 @@ show_menu() {
   echo -e "\e[32m6. 启动BBR\e[0m"
   echo -e "\e[32m0. 退出\e[0m"
   echo -e "\e[36m==============================\e[0m"
-  echo -e "\e[35m脚本由 BYY 设计-v004\e[0m"
+  echo -e "\e[35m脚本由 BYY 设计-v005\e[0m"
   echo -e "\e[35mWeChat: x7077796\e[0m"
   echo -e "\e[36m==============================\e[0m"
   echo ""
@@ -22,11 +26,9 @@ show_menu() {
 # 安装或更新必要工具的函数
 install_update_tools() {
   echo -e "\e[34m正在安装或更新必要的工具...\e[0m"
-  # 更新包管理器并安装iptables、net-tools和iptables-persistent（如果尚未安装）
   DEBIAN_FRONTEND=noninteractive apt update -y && apt upgrade -y -o 'APT::Get::Assume-Yes=true'
   DEBIAN_FRONTEND=noninteractive apt-get install -y iptables net-tools iptables-persistent
-  
-  # 禁用 ufw 防火墙（如果存在且激活）
+
   if command -v ufw >/dev/null 2>&1; then
     ufw_status=$(ufw status | grep -o 'active')
     if [[ "$ufw_status" == "active" ]]; then
@@ -35,13 +37,36 @@ install_update_tools() {
       echo -e "\e[32mufw 已禁用。\e[0m"
     fi
   fi
-  
-  # 配置基本的防火墙规则和 IP 转发
+
   echo -e "\e[34m配置基本的防火墙规则和 IP 转发...\e[0m"
-  echo "net.ipv4.ip_forward = 1" | tee -a /etc/sysctl.conf
+  sysctl_conf="/etc/sysctl.conf"
+  if ! grep -q "net.ipv4.ip_forward = 1" "$sysctl_conf"; then
+    echo "net.ipv4.ip_forward = 1" | tee -a "$sysctl_conf"
+  fi
   sysctl -p
-  
+
   echo -e "\e[32m工具安装或更新完成。\e[0m"
+  echo ""
+}
+
+# 保存iptables规则函数
+save_iptables_rules() {
+  iptables-save > /etc/iptables/rules.v4
+  ip6tables-save > /etc/iptables/rules.v6
+}
+
+# 清除所有设置的函数
+clear_all_rules() {
+  echo -e "\e[33m正在清除所有防火墙规则...\e[0m"
+  iptables -t nat -F
+  iptables -F FORWARD
+
+  rm -f "$UDP_OPENED_FILE"
+  rm -f "$PORT_RULES_FILE"
+
+  save_iptables_rules
+
+  echo -e "\e[32m所有防火墙规则已清除。\e[0m"
   echo ""
 }
 
@@ -70,54 +95,41 @@ add_forward_rule() {
   read -p "请输入起始转发端口: " start_port
   read -p "请输入结尾转发端口: " end_port
 
-  # 自动获取内网地址
   local_ip=$(detect_internal_ip)
 
-  # 记录 UDP 是否已经全局开启
-  local udp_opened_file="/var/tmp/udp_opened"
   udp_opened=false
-  if [[ -f "$udp_opened_file" ]]; then
+  if [[ -f "$UDP_OPENED_FILE" ]]; then
     udp_opened=true
   fi
 
-  # 验证输入是否为有效的端口范围
   if [[ $start_port -gt 0 && $start_port -le 65535 && $end_port -gt 0 && $end_port -le 65535 && $start_port -le $end_port ]]; then
-    # 添加新的iptables规则
     echo -e "\e[34m正在配置中转规则，目标IP: $target_ip, 端口范围: $start_port-$end_port\e[0m"
 
-    # 允许所有来自外部的 TCP 流量的转发
     iptables -I FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
 
-    # 如果是第一次设置中转规则，且UDP规则尚未添加，开启全局 UDP 端口 1500-65535 的转发
     if [ "$udp_opened" = false ]; then
       if ! iptables -C FORWARD -p udp --dport 1500:65535 -j ACCEPT 2>/dev/null; then
         echo -e "\e[34m正在配置 UDP 全局转发，范围: 1500-65535\e[0m"
         iptables -I FORWARD -p udp --dport 1500:65535 -j ACCEPT
-        touch "$udp_opened_file"
+        touch "$UDP_OPENED_FILE"
       fi
     fi
 
-    # 允许已建立和相关的连接，确保返回流量能正确通过
     iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 
-    # DNAT 将进入的连接转发到目标IP
     iptables -t nat -A PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
     if [ "$udp_opened" = false ]; then
       iptables -t nat -A PREROUTING -p udp -j DNAT --to-destination "$target_ip"
     fi
 
-    # SNAT 修改源地址为本地内网地址，确保回复能正确返回
     iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
     if [ "$udp_opened" = false ]; then
       iptables -t nat -A POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip"
     fi
 
-    # 将规则记录到文件中以便后续管理
-    echo "$start_port-$end_port $target_ip" >> /var/tmp/port_rules
+    echo "$start_port-$end_port $target_ip" >> "$PORT_RULES_FILE"
 
-    # 保存变更以确保重启后生效
-    iptables-save > /etc/iptables/rules.v4
-    ip6tables-save > /etc/iptables/rules.v6
+    save_iptables_rules
 
     echo -e "\e[32m中转规则配置完成。\e[0m"
     echo ""
@@ -125,57 +137,6 @@ add_forward_rule() {
     echo -e "\e[31m无效的端口范围，请确保输入的端口在 1 到 65535 之间，且起始端口小于或等于结束端口。\e[0m"
     echo ""
   fi
-}
-
-# 清除所有设置的函数
-clear_all_rules() {
-  echo -e "\e[33m正在清除所有防火墙规则...\e[0m"
-  iptables -t nat -F
-  iptables -F FORWARD
-
-  # 清除记录 UDP 全局开启的标志
-  rm -f /var/tmp/udp_opened
-  rm -f /var/tmp/port_rules
-
-  # 保存变更以确保重启后生效
-  iptables-save > /etc/iptables/rules.v4
-  ip6tables-save > /etc/iptables/rules.v6
-
-  echo -e "\e[32m所有防火墙规则已清除。\e[0m"
-  echo ""
-}
-
-# 清除指定的 PREROUTING 和 POSTROUTING 规则的函数
-clear_prerouting_postrouting() {
-  echo -e "\e[36m当前的 PREROUTING 和 POSTROUTING 规则:\e[0m"
-  iptables -t nat -L PREROUTING --line-numbers
-  iptables -t nat -L POSTROUTING --line-numbers
-  echo ""
-
-  read -p "请输入要清除的规则行号: " rule_num
-  if [[ -n "$rule_num" ]]; then
-    iptables -t nat -D PREROUTING $rule_num
-    iptables -t nat -D POSTROUTING $rule_num
-    echo -e "\e[32mPREROUTING 和 POSTROUTING 规则已删除。\e[0m"
-  else
-    echo -e "\e[31m无效的规则行号，请重试。\e[0m"
-  fi
-
-  # 保存变更以确保重启后生效
-  iptables-save > /etc/iptables/rules.v4
-  ip6tables-save > /etc/iptables/rules.v6
-  echo ""
-}
-
-# 查看当前中转规则的函数
-view_current_rules() {
-  echo -e "\e[36m当前的中转规则:\e[0m"
-  if [[ -f /var/tmp/port_rules ]]; then
-    cat /var/tmp/port_rules
-  else
-    echo -e "\e[31m没有已设置的中转规则。\e[0m"
-  fi
-  echo ""
 }
 
 # 启动BBR的函数
