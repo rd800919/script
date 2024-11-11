@@ -3,14 +3,13 @@
 # 定义显示菜单的函数
 show_menu() {
   echo "=============================="
-  echo " 中转服务器设置菜单111 "
+  echo " 中转服务器设置菜单 "
   echo "=============================="
   echo "1. 安装或更新必要工具"
   echo "2. 设置中转规则"
   echo "3. 清除所有设置"
   echo "4. 删除指定端口的转发规则"
-  echo "5. 查看当前中转规则"
-  echo "6. 退出"
+  echo "5. 退出"
   echo "=============================="
   echo "脚本由 BYY 设计-v001"
   echo "WeChat: x7077796"
@@ -70,6 +69,13 @@ add_forward_rule() {
   # 自动获取内网地址
   local_ip=$(detect_internal_ip)
 
+  # 记录 UDP 是否已经全局开启
+  local udp_opened_file="/var/tmp/udp_opened"
+  udp_opened=false
+  if [[ -f "$udp_opened_file" ]]; then
+    udp_opened=true
+  fi
+
   # 验证输入是否为有效的端口范围
   if [[ $start_port -gt 0 && $start_port -le 65535 && $end_port -gt 0 && $end_port -le 65535 && $start_port -le $end_port ]]; then
     # 添加新的iptables规则
@@ -78,12 +84,13 @@ add_forward_rule() {
     # 允许所有来自外部的 TCP 流量的转发
     iptables -I FORWARD -p tcp --dport "$start_port":"$end_port" -j ACCEPT
 
-    # 针对每个目标 IP 添加独立的 UDP 全局规则（1500-65535）
-    if ! iptables -t nat -C PREROUTING -p udp -d "$target_ip" --dport 1500:65535 -j DNAT --to-destination "$target_ip" 2>/dev/null; then
-      echo "正在配置 UDP 全局转发，范围: 1500-65535，目标IP: $target_ip"
-      iptables -I FORWARD -p udp -d "$target_ip" --dport 1500:65535 -j ACCEPT
-      iptables -t nat -A PREROUTING -p udp -d "$target_ip" --dport 1500:65535 -j DNAT --to-destination "$target_ip"
-      iptables -t nat -A POSTROUTING -d "$target_ip" -p udp --dport 1500:65535 -j SNAT --to-source "$local_ip"
+    # 如果是第一次设置中转规则，且UDP规则尚未添加，开启全局 UDP 端口 1500-65535 的转发
+    if [ "$udp_opened" = false ]; then
+      if ! iptables -C FORWARD -p udp --dport 1500:65535 -j ACCEPT 2>/dev/null; then
+        echo "正在配置 UDP 全局转发，范围: 1500-65535"
+        iptables -I FORWARD -p udp --dport 1500:65535 -j ACCEPT
+        touch "$udp_opened_file"
+      fi
     fi
 
     # 允许已建立和相关的连接，确保返回流量能正确通过
@@ -91,9 +98,15 @@ add_forward_rule() {
 
     # DNAT 将进入的连接转发到目标IP
     iptables -t nat -A PREROUTING -p tcp --dport "$start_port":"$end_port" -j DNAT --to-destination "$target_ip"
+    if [ "$udp_opened" = false ]; then
+      iptables -t nat -A PREROUTING -p udp -j DNAT --to-destination "$target_ip"
+    fi
 
     # SNAT 修改源地址为本地内网地址，确保回复能正确返回
     iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port":"$end_port" -j SNAT --to-source "$local_ip"
+    if [ "$udp_opened" = false ]; then
+      iptables -t nat -A POSTROUTING -d "$target_ip" -p udp -j SNAT --to-source "$local_ip"
+    fi
 
     # 将规则记录到文件中以便后续管理
     echo "$start_port-$end_port $target_ip" >> /var/tmp/port_rules
@@ -106,18 +119,12 @@ add_forward_rule() {
 
 # 清除所有设置的函数
 clear_all_rules() {
-  read -p "确定要清除所有防火墙规则吗？(y/n): " confirm
-  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-    echo "操作已取消。"
-    return
-  fi
-
   echo "正在清除所有防火墙规则..."
   iptables -t nat -F
   iptables -F FORWARD
 
   # 清除记录 UDP 全局开启的标志
-  rm -f /var/tmp/udp_opened_*
+  rm -f /var/tmp/udp_opened
   rm -f /var/tmp/port_rules
 
   echo "所有防火墙规则已清除。"
@@ -129,11 +136,8 @@ clear_prerouting_postrouting() {
   iptables -t nat -L PREROUTING --line-numbers
   iptables -t nat -L POSTROUTING --line-numbers
 
-  read -p "请输入要清除的规则行号 (按Enter取消): " rule_num
-  if [[ -z "$rule_num" ]]; then
-    echo "操作已取消。"
-    return
-  elif [[ -n "$rule_num" ]]; then
+  read -p "请输入要清除的规则行号: " rule_num
+  if [[ -n "$rule_num" ]]; then
     iptables -t nat -D PREROUTING $rule_num
     iptables -t nat -D POSTROUTING $rule_num
     echo "PREROUTING 和 POSTROUTING 规则已删除。"
@@ -146,20 +150,10 @@ clear_prerouting_postrouting() {
   ip6tables-save > /etc/iptables/rules.v6
 }
 
-# 查看当前中转规则的函数
-view_current_rules() {
-  echo "当前的中转规则:"
-  if [[ -f /var/tmp/port_rules ]]; then
-    cat /var/tmp/port_rules
-  else
-    echo "没有已设置的中转规则。"
-  fi
-}
-
 # 主循环
 while true; do
   show_menu
-  read -p "请选择一个选项 (1-6): " choice
+  read -p "请选择一个选项 (1-5): " choice
   case $choice in
     1)
       install_update_tools
@@ -174,14 +168,11 @@ while true; do
       clear_prerouting_postrouting
       ;;
     5)
-      view_current_rules
-      ;;
-    6)
       echo "退出程序。"
       exit 0
       ;;
     *)
-      echo "无效的选项，请输入 1, 2, 3, 4, 5 或 6。"
+      echo "无效的选项，请输入 1, 2, 3, 4 或 5。"
       ;;
   esac
 done
