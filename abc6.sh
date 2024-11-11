@@ -26,7 +26,7 @@ show_menu() {
   echo -e "\e[32m6. 启动BBR\e[0m"
   echo -e "\e[32m0. 退出\e[0m"
   echo -e "\e[36m==============================\e[0m"
-  echo -e "\e[35m脚本由 BYY 设计-v007\e[0m"
+  echo -e "\e[35m脚本由 BYY 设计-v005\e[0m"
   echo -e "\e[35mWeChat: x7077796\e[0m"
   echo -e "\e[36m==============================\e[0m"
   echo ""
@@ -109,22 +109,17 @@ add_forward_rule() {
   if [[ $start_port -gt 0 && $start_port -le 65535 && $end_port -gt 0 && $end_port -le 65535 && $start_port -le $end_port ]]; then
     echo -e "\e[34m正在配置中转规则，目标IP: $target_ip, 端口范围: $start_port-$end_port\e[0m"
 
+    # 设置 TCP/UDP 的 DNAT 和 SNAT 规则
     iptables -I FORWARD -p tcp --dport "$start_port:$end_port" -j ACCEPT
+    iptables -I FORWARD -p udp --dport "$start_port:$end_port" -j ACCEPT
 
-    # 确保全局 UDP 端口转发范围为 1500-65535
-    if [[ ! -f "$UDP_OPENED_FILE" ]]; then
-      echo -e "\e[34m正在配置 UDP 全局转发，范围: 1500-65535\e[0m"
-      iptables -I FORWARD -p udp --dport 1500:65535 -j ACCEPT
-      iptables -t nat -A PREROUTING -p udp --dport 1500:65535 -j ACCEPT
-      iptables -t nat -A POSTROUTING -p udp --dport 1500:65535 -j MASQUERADE
-      touch "$UDP_OPENED_FILE"
-    fi
-
-    # 允许 TCP/UDP 已建立和相关的连接
     iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 
     iptables -t nat -A PREROUTING -p tcp --dport "$start_port:$end_port" -j DNAT --to-destination "$target_ip"
+    iptables -t nat -A PREROUTING -p udp --dport "$start_port:$end_port" -j DNAT --to-destination "$target_ip"
+
     iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port:$end_port" -j SNAT --to-source "$local_ip"
+    iptables -t nat -A POSTROUTING -d "$target_ip" -p udp --dport "$start_port:$end_port" -j SNAT --to-source "$local_ip"
 
     echo "$start_port-$end_port $target_ip" >> "$PORT_RULES_FILE"
 
