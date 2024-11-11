@@ -10,7 +10,8 @@ show_menu() {
   echo -e "\e[32m3. 清除所有设置\e[0m"
   echo -e "\e[32m4. 删除指定端口的转发规则\e[0m"
   echo -e "\e[32m5. 查看当前中转规则\e[0m"
-  echo -e "\e[32m6. 退出\e[0m"
+  echo -e "\e[32m6. 启动BBR\e[0m"
+  echo -e "\e[32m0. 退出\e[0m"
   echo -e "\e[36m==============================\e[0m"
   echo -e "\e[35m脚本由 BYY 设计-v003\e[0m"
   echo -e "\e[35mWeChat: x7077796\e[0m"
@@ -177,10 +178,37 @@ view_current_rules() {
   echo ""
 }
 
+# 启动BBR的函数
+enable_bbr() {
+  echo -e "\e[33m启动 BBR 将会清除所有已设置的转发规则。\e[0m"
+  read -p "是否继续? (y/n): " confirm
+  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+    echo -e "\e[31m操作已取消。\e[0m"
+    return
+  fi
+
+  # 清除所有转发规则
+  clear_all_rules
+
+  # 启用 BBR
+  echo -e "\e[34m正在启用 BBR...\e[0m"
+  echo "net.core.default_qdisc=fq" | tee -a /etc/sysctl.conf
+  echo "net.ipv4.tcp_congestion_control=bbr" | tee -a /etc/sysctl.conf
+  sysctl -p
+
+  # 验证 BBR 是否启用
+  if lsmod | grep -q "bbr"; then
+    echo -e "\e[32mBBR 已成功启用。\e[0m"
+  else
+    echo -e "\e[31mBBR 启用失败。\e[0m"
+  fi
+  echo ""
+}
+
 # 主循环
 while true; do
   show_menu
-  read -p "请选择一个选项 (1-6): " choice
+  read -p "请选择一个选项 (0-6): " choice
   echo ""
   case $choice in
     1)
@@ -199,11 +227,14 @@ while true; do
       view_current_rules
       ;;
     6)
+      enable_bbr
+      ;;
+    0)
       echo -e "\e[32m退出程序。\e[0m"
       exit 0
       ;;
     *)
-      echo -e "\e[31m无效的选项，请输入 1, 2, 3, 4, 5 或 6。\e[0m"
+      echo -e "\e[31m无效的选项，请输入 0, 1, 2, 3, 4, 5 或 6。\e[0m"
       ;;
   esac
 done
