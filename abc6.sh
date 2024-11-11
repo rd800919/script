@@ -9,9 +9,10 @@ show_menu() {
   echo "2. 设置中转规则"
   echo "3. 清除所有设置"
   echo "4. 删除指定端口的转发规则"
-  echo "5. 退出"
+  echo "5. 查看当前中转规则"
+  echo "6. 退出"
   echo "=============================="
-  echo "脚本由 BYY 设计-v001"
+  echo "脚本由 BYY 设计-v002"
   echo "WeChat: x7077796"
   echo "=============================="
 }
@@ -150,10 +151,20 @@ clear_prerouting_postrouting() {
   ip6tables-save > /etc/iptables/rules.v6
 }
 
+# 查看当前中转规则的函数
+view_current_rules() {
+  echo "当前的中转规则:"
+  if [[ -f /var/tmp/port_rules ]]; then
+    cat /var/tmp/port_rules
+  else
+    echo "没有已设置的中转规则。"
+  fi
+}
+
 # 主循环
 while true; do
   show_menu
-  read -p "请选择一个选项 (1-5): " choice
+  read -p "请选择一个选项 (1-6): " choice
   case $choice in
     1)
       install_update_tools
@@ -168,11 +179,14 @@ while true; do
       clear_prerouting_postrouting
       ;;
     5)
+      view_current_rules
+      ;;
+    6)
       echo "退出程序。"
       exit 0
       ;;
     *)
-      echo "无效的选项，请输入 1, 2, 3, 4 或 5。"
+      echo "无效的选项，请输入 1, 2, 3, 4, 5 或 6。"
       ;;
   esac
 done
