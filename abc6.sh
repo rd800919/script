@@ -12,7 +12,7 @@ show_menu() {
   echo -e "\e[32m5. 查看当前中转规则\e[0m"
   echo -e "\e[32m6. 退出\e[0m"
   echo -e "\e[36m==============================\e[0m"
-  echo -e "\e[35m脚本由 BYY 设计-v002\e[0m"
+  echo -e "\e[35m脚本由 BYY 设计-v003\e[0m"
   echo -e "\e[35mWeChat: x7077796\e[0m"
   echo -e "\e[36m==============================\e[0m"
 }
