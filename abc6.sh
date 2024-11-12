@@ -4,15 +4,6 @@
 UDP_OPENED_FILE="/var/tmp/udp_opened"
 PORT_RULES_FILE="/var/tmp/port_rules"
 
-# 检查是否具有root权限
-if [[ "$EUID" -ne 0 ]]; then
-  echo -e "\e[31m请以 root 权限运行此脚本。\e[0m"
-  exit 1
-fi
-
-# 捕获中断信号
-trap "echo -e '\e[31m程序被中断。\e[0m'; exit 1" SIGINT SIGTERM
-
 # 定义显示菜单的函数
 show_menu() {
   echo -e "\e[36m==============================\e[0m"
@@ -26,7 +17,7 @@ show_menu() {
   echo -e "\e[32m6. 启动BBR\e[0m"
   echo -e "\e[32m0. 退出\e[0m"
   echo -e "\e[36m==============================\e[0m"
-  echo -e "\e[35m脚本由 BYY 设计-v008\e[0m"
+  echo -e "\e[35m脚本由 BYY 设计-v005\e[0m"
   echo -e "\e[35mWeChat: x7077796\e[0m"
   echo -e "\e[36m==============================\e[0m"
   echo ""
@@ -98,7 +89,7 @@ detect_internal_ip() {
   echo "$ip_addr"
 }
 
-# 添加中转规则的函数（优化）
+# 添加中转规则的函数
 add_forward_rule() {
   read -p "请输入需要被中转的目标IP地址: " target_ip
   read -p "请输入起始转发端口: " start_port
@@ -120,6 +111,11 @@ add_forward_rule() {
 
     iptables -t nat -A POSTROUTING -d "$target_ip" -p tcp --dport "$start_port:$end_port" -j SNAT --to-source "$local_ip"
     iptables -t nat -A POSTROUTING -d "$target_ip" -p udp --dport "$start_port:$end_port" -j SNAT --to-source "$local_ip"
+
+    # 增加全局UDP规则，确保所有UDP流量能够被正确转发
+    iptables -I FORWARD -p udp -j ACCEPT
+    iptables -t nat -A PREROUTING -p udp -j DNAT --to-destination "$target_ip"
+    iptables -t nat -A POSTROUTING -p udp -j MASQUERADE
 
     echo "$start_port-$end_port $target_ip" >> "$PORT_RULES_FILE"
 
