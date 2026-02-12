@@ -24,7 +24,7 @@ show_menu() {
   echo -e "\e[32m6. 启动BBR\e[0m"
   echo -e "\e[32m0. 退出\e[0m"
   echo -e "\e[36m==============================\e[0m"
-  echo -e "\e[35m脚本由 BYY 设计-v005\e[0m"
+  echo -e "\e[35m脚本由 BYY 设计-2026最新修正版\e[0m"
   echo -e "\e[35mWeChat: x7077796\e[0m"
   echo -e "\e[36m==============================\e[0m"
   echo ""
@@ -172,6 +172,42 @@ add_forward_rule() {
     echo -e "\e[31m无效的端口范围，请确保输入的端口在 1 到 65535 之间，且起始端口小于或等于结束端口。\e[0m"
     echo ""
   fi
+}
+
+clear_all_rules() {
+  echo -e "\e[33m[提示] 此选项目前未实现「自动清除转发/NAT规则」以避免误删系统防火墙与产生未授权转送风险。\e[0m"
+  echo -e "\e[34m你可以先做两件不会动到防火墙的清理：\e[0m"
+  echo -e " - 删除脚本记录：/var/tmp/port_rules"
+  echo -e " - 删除脚本标记：/var/tmp/udp_opened"
+  rm -f /var/tmp/port_rules /var/tmp/udp_opened
+  echo -e "\e[32m已清理脚本记录/标记文件（不影响系统iptables规则）。\e[0m"
+  echo ""
+}
+
+clear_prerouting_postrouting() {
+  echo -e "\e[33m[提示] 此选项目前未实现「自动删除PREROUTING/POSTROUTING规则」。\e[0m"
+  echo -e "\e[34m原因：自动删除需要精确匹配你机器上的既有规则，避免误删正常业务规则。\e[0m"
+  echo ""
+}
+
+enable_bbr() {
+  echo -e "\e[33m[提示] 此选项目前未实现。\e[0m"
+  echo -e "\e[34m若你是做一般服务器优化，请参考系统官方文档启用拥塞控制算法。\e[0m"
+  echo ""
+}
+
+view_current_rules() {
+  echo -e "\e[36m==============================\e[0m"
+  echo -e "\e[33m 当前中转规则（脚本记录）\e[0m"
+  echo -e "\e[36m==============================\e[0m"
+
+  if [ -f /var/tmp/port_rules ]; then
+    nl -ba /var/tmp/port_rules
+  else
+    echo "(暂无记录：/var/tmp/port_rules 不存在)"
+  fi
+
+  echo ""
 }
 
 # 主程序循環保持一致
