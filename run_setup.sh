@@ -196,6 +196,20 @@ enable_bbr() {
   echo ""
 }
 
+view_current_rules() {
+  echo -e "\e[36m==============================\e[0m"
+  echo -e "\e[33m 当前中转规则（脚本记录）\e[0m"
+  echo -e "\e[36m==============================\e[0m"
+
+  if [ -f /var/tmp/port_rules ]; then
+    nl -ba /var/tmp/port_rules
+  else
+    echo "(暂无记录：/var/tmp/port_rules 不存在)"
+  fi
+
+  echo ""
+}
+
 # 主程序循環保持一致
 while true; do
   show_menu
