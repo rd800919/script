@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # =========================================================
-# 脚本由 BYY 设计 - 2026 最新修正版 [Version: 第一修正版]
+# 脚本由 BYY 设计 - 2026 最新修正版 [Version: 第二修正版]
 # WeChat: x7077796
-# 定制需求：游戏转发专用 + 全域 UDP 转发
+# 定制需求：游戏转发 + 全域UDP + 域名自动解析
 # =========================================================
 
 # 定义记录文件路径
@@ -27,7 +27,7 @@ show_menu() {
   echo -e "\e[33m         中转服务器设置菜单 (游戏专用版)      \e[0m"
   echo -e "\e[36m============================================\e[0m"
   echo -e "\e[32m 1. 安装或更新必要工具 (初始化环境)\e[0m"
-  echo -e "\e[32m 2. 设置中转规则 (TCP精准+UDP全域)\e[0m"
+  echo -e "\e[32m 2. 设置中转规则 (支持域名/IP)\e[0m"
   echo -e "\e[32m 3. 清除所有设置 (重置防火墙)\e[0m"
   echo -e "\e[32m 4. 删除指定序号的转发规则\e[0m"
   echo -e "\e[32m 5. 查看当前转发状态 (记录+实况)\e[0m"
@@ -35,7 +35,7 @@ show_menu() {
   echo -e "\e[32m 0. 退出\e[0m"
   echo -e "\e[36m============================================\e[0m"
   echo -e "\e[35m 脚本由 BYY 设计 - 2026 最新修正版\e[0m"
-  echo -e "\e[35m 版本状态：[第一修正版]\e[0m"
+  echo -e "\e[35m 版本状态：[第二修正版] (含域名解析)\e[0m"
   echo -e "\e[35m WeChat: x7077796\e[0m"
   echo -e "\e[36m============================================\e[0m"
   echo ""
@@ -60,16 +60,33 @@ get_local_ip() {
   echo "$ip"
 }
 
+# 解析域名函数
+resolve_domain() {
+  local target="$1"
+  # 检查是否已经是 IP 地址
+  if [[ "$target" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "$target"
+  else
+    # 尝试使用 ping 解析获取第一个 IP
+    local ip=$(ping -c 1 -W 1 "$target" 2>/dev/null | grep -oP '(?<=\().*?(?=\))' | head -1)
+    # 如果 ping 失败，尝试 getent
+    if [[ -z "$ip" ]]; then
+       ip=$(getent ahostsv4 "$target" | awk '{ print $1 }' | head -n 1)
+    fi
+    echo "$ip"
+  fi
+}
+
 # 1. 环境初始化
 install_tools() {
   local os=$(detect_os)
   echo -e "\e[34m正在优化系统环境以适合游戏转发...\e[0m"
   
   if [ "$os" == "Debian" ]; then
-    apt update -y && apt install -y iptables iptables-persistent netfilter-persistent net-tools
+    apt update -y && apt install -y iptables iptables-persistent netfilter-persistent net-tools dnsutils
     if command -v ufw >/dev/null 2>&1; then ufw disable >/dev/null 2>&1; fi
   elif [ "$os" == "CentOS" ]; then
-    yum install -y iptables-services net-tools
+    yum install -y iptables-services net-tools bind-utils
     systemctl disable firewalld && systemctl stop firewalld
     systemctl enable iptables && systemctl start iptables
   else
@@ -96,7 +113,22 @@ add_rule() {
   local_ip=$(get_local_ip)
   if [[ -z "$local_ip" ]]; then echo -e "\e[31m检测不到内网IP，请先执行选项1。\e[0m"; return; fi
 
-  read -p "请输入目标(远程)IP地址: " target_ip
+  # 修改提示，支持域名
+  read -p "请输入目标(远程)IP地址或域名: " input_target
+  
+  # 执行解析
+  echo -e "\e[33m正在解析地址...\e[0m"
+  target_ip=$(resolve_domain "$input_target")
+
+  if [[ -z "$target_ip" ]]; then
+    echo -e "\e[31m错误：无法解析域名 '$input_target'，请检查拼写或网络连通性。\e[0m"
+    return
+  fi
+  
+  if [[ "$input_target" != "$target_ip" ]]; then
+    echo -e "\e[32m域名解析成功！目标 IP: $target_ip\e[0m"
+  fi
+
   read -p "请输入起始转发端口: " s_port
   read -p "请输入结束转发端口: " e_port
 
@@ -120,11 +152,13 @@ add_rule() {
     touch "$UDP_FLAG_FILE"
   fi
 
-  # 允许已建立的连线通行
-  iptables -I FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+  # 优化：防止重复添加 conntrack 规则
+  if ! iptables -C FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null; then
+      iptables -I FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+  fi
 
-  # 记录到文件
-  echo "$s_port-$e_port $target_ip" >> "$RULES_FILE"
+  # 记录到文件 (记录原始输入，方便查看)
+  echo "$s_port-$e_port $target_ip ($input_target)" >> "$RULES_FILE"
   save_iptables
   echo -e "\e[32m中转规则添加成功！游戏转发已生效。\e[0m\n"
 }
