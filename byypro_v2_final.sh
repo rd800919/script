@@ -32,7 +32,7 @@ LOG_FILE="${LOG_DIR}/byypro.log"
 SHORTCUT_BIN="/usr/local/bin/byypro"
 GOST_BIN="/usr/local/bin/gost"
 GOST_VERSION="2.11.5"
-UPDATE_URL="https://raw.githubusercontent.com/rd800919/script/refs/heads/main/byypro_v2_final.sh"
+UPDATE_URL="https://raw.githubusercontent.com/rd800919/script/main/byypro_v2_final.sh"
 CHAIN_PRE="BYYPRO_PREROUTING"
 CHAIN_POST="BYYPRO_POSTROUTING"
 
