@@ -5,7 +5,7 @@ GREEN='\033[0;32m'
 CYAN='\033[0;36m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-PURPLE='\033[0;35m'  # 新增高贵紫色，用于您的专属签名
+PURPLE='\033[0;35m'
 NC='\033[0m'
 
 # ================= 致命防呆 1：检查是否为 Root 权限 =================
@@ -15,6 +15,26 @@ if [[ $EUID -ne 0 ]]; then
    echo -e "这个脚本需要系统的最高权限才能运行。"
    echo -e "👉 请输入 ${YELLOW}sudo su${NC} 命令回车，切换到 root 账号后再运行我吧！"
    exit 1
+fi
+
+# ================= 全局快捷命令与自动更新 (究极防呆) =================
+# 只要用户跑过一次，以后直接输入 byypro 就能打开，而且每次打开都会自动拉取 github 最新版
+if [ ! -f "/usr/local/bin/byypro" ]; then
+    echo -e "${YELLOW}⚙️ 首次运行，正在为您生成系统快捷命令...${NC}"
+    wget -q -O /usr/local/bin/byypro https://raw.githubusercontent.com/rd800919/script/refs/heads/main/byy_relay.sh
+    chmod +x /usr/local/bin/byypro
+    clear
+    echo -e "${GREEN}🎉 恭喜！您的专属快捷命令已生成！${NC}"
+    echo -e "👉 以后无论您关闭了窗口还是重新登录，只要在屏幕输入 ${YELLOW}byypro${NC} 然后回车，就能一秒呼出本菜单！"
+    echo -e "----------------------------------------------------"
+    sleep 4
+else
+    # 后台静默更新，确保客户用的永远是您的最新版
+    wget -q -O /tmp/byy_relay_update.sh https://raw.githubusercontent.com/rd800919/script/refs/heads/main/byy_relay.sh
+    if [ -s "/tmp/byy_relay_update.sh" ]; then
+        mv -f /tmp/byy_relay_update.sh /usr/local/bin/byypro
+        chmod +x /usr/local/bin/byypro
+    fi
 fi
 
 # ================= 自动环境与依赖检查 (全静默防吓人) =================
@@ -33,7 +53,7 @@ if ! command -v gzip &> /dev/null; then yum install -q -y gzip >/dev/null 2>&1; 
 
 if ! command -v gost &> /dev/null; then
     clear
-    echo -e "${YELLOW}🎁 首次运行，正在后台悄悄帮您下载必须的组件，请耐心稍等几秒钟...${NC}"
+    echo -e "${YELLOW}🎁 正在后台悄悄帮您下载必须的核心组件，请耐心稍等几秒钟...${NC}"
     wget -q -O gost.gz https://github.com/ginuerzh/gost/releases/download/v2.11.5/gost-linux-amd64-2.11.5.gz
     gzip -d gost.gz
     chmod +x gost
@@ -73,6 +93,9 @@ while true; do
     echo -e "${PURPLE}  👨‍💻 脚本由 BYY 设计 - 2026 最终完美版${NC}"
     echo -e "${PURPLE}  💬 官方微信 (WeChat): x7077796${NC}"
     echo -e "${CYAN}====================================================${NC}"
+    
+    # 防呆优化的视觉重点：在输入框正上方加入极高亮度的温馨提示
+    echo -e "${YELLOW} 💡 温馨提示：如果关闭了本窗口，下次只要在屏幕输入 ${GREEN}byypro${YELLOW} 回车即可再次打开菜单！${NC}"
     echo ""
     read -p "请输入对应的数字 [0-5]: " choice
 
@@ -266,7 +289,8 @@ EOF
             ;;
             
         0)
-            echo -e "${GREEN}感谢使用，祝老板财源广进！拜拜。${NC}"
+            echo -e "\n${GREEN}感谢使用，祝老板财源广进！${NC}"
+            echo -e "${YELLOW}👉 别忘了，下次想修改设置，直接输入 ${GREEN}byypro${YELLOW} 回车就能回来啦！拜拜👋${NC}\n"
             break
             ;;
             
