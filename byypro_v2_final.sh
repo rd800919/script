@@ -19,7 +19,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # ---------------- 基础配置 ----------------
-APP_NAME="BYYPRO 网络中转管理系统 v2 Final"
+APP_NAME="中转服务器设置菜单（游戏工作室专用版）"
 BASE_DIR="/etc/byypro"
 DATA_DIR="${BASE_DIR}/data"
 BACKUP_DIR="${BASE_DIR}/backup"
@@ -32,7 +32,7 @@ LOG_FILE="${LOG_DIR}/byypro.log"
 SHORTCUT_BIN="/usr/local/bin/byypro"
 GOST_BIN="/usr/local/bin/gost"
 GOST_VERSION="2.11.5"
-UPDATE_URL="https://raw.githubusercontent.com/rd800919/script/main/byypro_v2_final.sh"
+UPDATE_URL="https://raw.githubusercontent.com/rd800919/script/refs/heads/main/byypro_v2_final.sh"
 CHAIN_PRE="BYYPRO_PREROUTING"
 CHAIN_POST="BYYPRO_POSTROUTING"
 
@@ -99,6 +99,35 @@ print_header() {
     echo -e "${CYAN}============================================================${NC}"
     echo -e "${YELLOW}              ${APP_NAME}              ${NC}"
     echo -e "${CYAN}============================================================${NC}"
+}
+
+show_menu() {
+    local direct_count="$1"
+    local server_count="$2"
+    local client_count="$3"
+
+    clear_screen
+    echo -e "${CYAN}============================================================${NC}"
+    echo -e "${YELLOW}              中转服务器设置菜单（游戏专用版）              ${NC}"
+    echo -e "${CYAN}============================================================${NC}"
+    echo -e " ${GREEN}当前配置：${NC}单机直连 ${YELLOW}${direct_count}${NC} 条 | 海外接收端 ${YELLOW}${server_count}${NC} 条 | 国内转发端 ${YELLOW}${client_count}${NC} 条"
+    echo -e "${CYAN}------------------------------------------------------------${NC}"
+    echo -e "${GREEN} 1. 新手模式：设置单机直连规则（一台服务器就能用）${NC}"
+    echo -e "${GREEN} 2. 双机稳定模式（国内机 + 海外机，更稳）${NC}"
+    echo -e "${GREEN} 3. 查看当前转发状态（记录 + 实况）${NC}"
+    echo -e "${GREEN} 4. 删除指定编号的配置 / 重新设置${NC}"
+    echo -e "${GREEN} 5. 一键网络优化（降低卡顿，建议开启）${NC}"
+    echo -e "${GREEN} 6. 一键检测问题（不会排错就点这里）${NC}"
+    echo -e "${GREEN} 7. 检查脚本更新${NC}"
+    echo -e "${GREEN} 0. 退出${NC}"
+    echo -e "${CYAN}============================================================${NC}"
+    echo -e "${PURPLE} 脚本由 BYY 设计 - 2026 最终稳定版${NC}"
+    echo -e "${PURPLE} 版本状态：[V2 最终稳定版]（防呆增强 / 更稳 / 更好维护）${NC}"
+    echo -e "${PURPLE} WeChat / 微信：x7077796${NC}"
+    echo -e "${CYAN}============================================================${NC}"
+    echo -e "${YELLOW} 温馨提示：首次运行会自动安装必要工具，无需手动操作${NC}"
+    echo -e "${YELLOW} 温馨提示：以后关闭窗口后，直接输入 ${GREEN}byypro${YELLOW} 回车即可再次打开本菜单${NC}"
+    echo ""
 }
 
 check_root_or_exit() {
@@ -486,14 +515,14 @@ create_direct_rule() {
 
     while true; do
         print_header
-        echo -e "${GREEN}1）新手模式：单机直连${NC}"
-        echo "适合：只有一台服务器，想把这台机器上的某个端口，直接转到目标节点"
-        echo "你只需要记住：以后你的软件连这台机器的【本地端口】即可"
+        echo -e "${GREEN}1）设置中转规则 - 新手模式（单机直连）${NC}"
+        echo "适合：你只有一台服务器时使用，把这台机器上的某个端口，直接转发到目标节点"
+        echo "你只需要记住：以后你的软件或客户端，直接连这台机器的【本地端口】即可"
         line
 
         local_port="$(prompt_port '步骤 1/3：你的软件要连这台机器的哪个端口？例如 1080 / 8080')" || return 0
         if port_in_use "$local_port"; then
-            warn "检测到端口 ${local_port} 可能已被其他程序占用"
+            warn "检测到端口 ${local_port} 可能已被其他程序占用，继续使用可能会冲突"
             read -r -p "继续创建请按 1，重新填写请按 2，返回请按 0: " create_result
             case "$create_result" in
                 1) ;;
@@ -503,7 +532,7 @@ create_direct_rule() {
         fi
 
         if grep -E "^[0-9]+\|[^|]+\|[^|]*\|${local_port}\|" "$RULES_DB" >/dev/null 2>&1; then
-            warn "数据库里已经存在使用本地端口 ${local_port} 的规则，建议换一个端口"
+            warn "数据库里已经存在使用本地端口 ${local_port} 的配置，建议换一个端口，避免冲突"
             pause
             return 0
         fi
@@ -511,7 +540,7 @@ create_direct_rule() {
         remote_ip="$(prompt_ipv4 '步骤 2/3：最终目标机器 IP 是多少？例如 1.2.3.4')" || return 0
         remote_port="$(prompt_port '步骤 3/3：最终目标机器端口是多少？例如 1080 / 443')" || return 0
 
-        render_summary_box "本次将创建以下配置" \
+        render_summary_box "请确认本次中转规则" \
             "模式：单机直连" \
             "本地端口：${local_port}" \
             "目标地址：${remote_ip}:${remote_port}" \
@@ -537,10 +566,10 @@ create_direct_rule() {
     db_add_rule "${rule_id}|direct|单机直连|${local_port}|${remote_ip}|${remote_port}||||$(ts)"
     rebuild_direct_rules
 
-    render_summary_box "创建完成" \
+    render_summary_box "设置完成" \
         "规则编号：${rule_id}" \
         "模式：单机直连" \
-        "你的软件以后这样填：" \
+        "你的软件或客户端以后这样填写：" \
         "服务器地址：这台机器的 IP" \
         "端口：${local_port}"
     ok "单机直连规则已创建成功"
@@ -552,13 +581,14 @@ create_tunnel_server() {
     while true; do
         print_header
         echo -e "${RED}2）双机稳定模式 - 海外机设置${NC}"
-        echo "适合：你现在登录的是【海外机】"
-        echo "这一步会在海外机上创建一个接收端，等国内机再来连它"
+        echo "适合：你现在操作的是【海外机】"
+        echo "不会配也没关系，按步骤填就行，后面会告诉你国内机要填什么"
+        echo "这一步会在海外机上创建接收端，后面国内机要来连接这里"
         line
 
         tunnel_port="$(prompt_port '步骤 1/2：请设置海外机监听端口，推荐 443' '443')" || return 0
         if port_in_use "$tunnel_port"; then
-            warn "检测到端口 ${tunnel_port} 可能已被其他程序占用"
+            warn "检测到端口 ${tunnel_port} 可能已被其他程序占用，继续使用可能会冲突"
             read -r -p "继续创建请按 1，重新填写请按 2，返回请按 0: " create_result
             case "$create_result" in
                 1) ;;
@@ -569,7 +599,7 @@ create_tunnel_server() {
 
         tunnel_pass="$(prompt_text '步骤 2/2：请设置隧道密码，例如 123456 或自定义复杂一点')" || return 0
 
-        render_summary_box "本次将创建以下配置" \
+        render_summary_box "请确认本次中转规则" \
             "模式：双机稳定模式 - 海外机" \
             "海外监听端口：${tunnel_port}" \
             "隧道密码：$(mask_text "$tunnel_pass")" \
@@ -620,7 +650,7 @@ EOF_SERVER
         "海外机 IP：$(show_local_ips)" \
         "隧道端口：${tunnel_port}" \
         "隧道密码：${tunnel_pass}" \
-        "下一步：去登录国内机，再选择【双机稳定模式】中的国内机设置"
+        "下一步：去登录国内机，再选择【双机稳定模式】里的国内机设置"
 
     if service_active "$service_name"; then
         ok "海外机服务正在运行中"
@@ -635,13 +665,14 @@ create_tunnel_client() {
     while true; do
         print_header
         echo -e "${RED}2）双机稳定模式 - 国内机设置${NC}"
-        echo "适合：你现在登录的是【国内机】"
-        echo "这一步会把国内机的本地端口，通过海外机转发到最终目标"
+        echo "适合：你现在操作的是【国内机】"
+        echo "不会配也没关系，按步骤填就行，前提是海外机那边要先设置好"
+        echo "这一步会把国内机的本地端口，通过海外机转发到最终目标地址"
         line
 
         local_port="$(prompt_port '步骤 1/6：你的软件要连这台国内机的哪个端口？例如 1080 / 8080')" || return 0
         if port_in_use "$local_port"; then
-            warn "检测到端口 ${local_port} 可能已被其他程序占用"
+            warn "检测到端口 ${local_port} 可能已被其他程序占用，继续使用可能会冲突"
             read -r -p "继续创建请按 1，重新填写请按 2，返回请按 0: " create_result
             case "$create_result" in
                 1) ;;
@@ -651,7 +682,7 @@ create_tunnel_client() {
         fi
 
         if grep -E "^[0-9]+\|[^|]+\|[^|]*\|${local_port}\|" "$RULES_DB" >/dev/null 2>&1; then
-            warn "数据库里已经存在使用本地端口 ${local_port} 的规则，建议换一个端口"
+            warn "数据库里已经存在使用本地端口 ${local_port} 的配置，建议换一个端口，避免冲突"
             pause
             return 0
         fi
@@ -662,7 +693,7 @@ create_tunnel_client() {
         remote_port="$(prompt_port '步骤 5/6：海外机隧道端口是多少？通常填 443' '443')" || return 0
         tunnel_pass="$(prompt_text '步骤 6/6：你刚刚在海外机设置的隧道密码是什么？')" || return 0
 
-        render_summary_box "本次将创建以下配置" \
+        render_summary_box "请确认本次中转规则" \
             "模式：双机稳定模式 - 国内机" \
             "国内本地端口：${local_port}" \
             "最终目标：${game_host}:${game_port}" \
@@ -723,7 +754,7 @@ EOF_CLIENT
 
     render_summary_box "国内机设置完成" \
         "规则编号：${rule_id}" \
-        "你的软件以后这样填：" \
+        "你的软件或客户端以后这样填写：" \
         "服务器地址：这台国内机的 IP" \
         "端口：${local_port}" \
         "最终目标：${game_host}:${game_port}" \
@@ -740,10 +771,11 @@ menu_tunnel_mode() {
     while true; do
         print_header
         echo -e "${RED}2）双机稳定模式${NC}"
-        echo "如果你有【国内机 + 海外机】两台机器，建议使用这个模式"
+        echo "如果你有【国内机 + 海外机】两台机器，建议使用这个模式，通常会更稳"
+        echo "不知道自己在操作哪台机器，就先看机器所在位置：国外是海外机，国内是国内机"
         echo ""
-        echo "  1. 我现在登录的是【海外机】"
-        echo "  2. 我现在登录的是【国内机】"
+        echo "  1. 我现在操作的是【海外机】"
+        echo "  2. 我现在操作的是【国内机】"
         echo "  0. 返回主菜单"
         line
         read -r -p "请输入数字 [0-2]: " c
@@ -763,12 +795,13 @@ print_status() {
     client_count="$(rule_count_by_type tunnel_client)"
 
     print_header
+    echo -e "${GREEN}3）查看当前转发状态（记录 + 实况）${NC}"
     echo -e "${GREEN}当前服务器 IP：${NC}$(show_local_ips)"
-    echo -e "${GREEN}规则数量：${NC}单机直连 ${YELLOW}${direct_count}${NC} 条 | 海外接收端 ${YELLOW}${server_count}${NC} 条 | 国内转发端 ${YELLOW}${client_count}${NC} 条"
+    echo -e "${GREEN}当前转发数量：${NC}单机直连 ${YELLOW}${direct_count}${NC} 条 | 海外接收端 ${YELLOW}${server_count}${NC} 条 | 国内转发端 ${YELLOW}${client_count}${NC} 条"
     line
 
     if [ ! -s "$RULES_DB" ]; then
-        echo "当前还没有任何配置"
+        echo "当前还没有任何转发配置"
         return 0
     fi
 
@@ -776,7 +809,7 @@ print_status() {
         [ -n "$id" ] || continue
         case "$type" in
             direct)
-                echo -e "${BLUE}[编号 ${id}] 单机直连${NC}"
+                echo -e "${BLUE}[编号 ${id}] 新手模式 - 单机直连${NC}"
                 echo "  本地端口：${local_port}"
                 echo "  目标地址：${target_host}:${target_port}"
                 if check_tcp_reachable "$target_host" "$target_port"; then
@@ -837,6 +870,7 @@ remove_rule_menu() {
     while true; do
         print_status
         echo ""
+        echo -e "${GREEN}4）删除指定编号的配置 / 重新设置${NC}"
         read -r -p "请输入要删除的【规则编号】，输入 0 返回主菜单: " id
         [ "$id" = "0" ] && return 0
         rule="$(db_get_rule "$id")"
@@ -847,7 +881,7 @@ remove_rule_menu() {
         fi
 
         IFS='|' read -r id type name local_port target_host target_port remote_host remote_port service_name extra <<< "$rule"
-        render_summary_box "你即将删除以下配置" \
+        render_summary_box "请确认要删除的配置" \
             "编号：${id}" \
             "类型：${name}" \
             "本地端口：${local_port}" \
@@ -891,9 +925,9 @@ remove_rule_menu() {
 
 apply_network_optimization() {
     print_header
-    echo -e "${GREEN}5）一键网络优化${NC}"
-    echo "这一步会把优化写入独立配置文件，不会乱改 /etc/sysctl.conf 主文件"
-    echo "适合想提升 TCP 稳定性、队列表现、连接恢复能力的场景"
+    echo -e "${GREEN}5）一键网络优化（降低卡顿，建议开启）${NC}"
+    echo "这一步会把优化写入独立配置文件，不会乱改系统主配置"
+    echo "适合想提升 TCP 稳定性、连接恢复能力、减少卡顿的场景"
     line
     echo "即将写入：${SYSCTL_FILE}"
     echo ""
@@ -927,7 +961,7 @@ EOF_SYSCTL
 
 run_diagnostics() {
     print_header
-    echo -e "${GREEN}6）一键检测问题${NC}"
+    echo -e "${GREEN}6）一键检测问题（不会排错就点这里）${NC}"
     line
 
     echo -n "1. root 权限："
@@ -1042,7 +1076,7 @@ update_script() {
 
     mv -f "$tmp_file" "$SHORTCUT_BIN" && chmod +x "$SHORTCUT_BIN"
     ok "脚本已更新成功"
-    echo -e "下次直接输入 ${YELLOW}byypro${NC} 即可进入新版本"
+    echo -e "以后直接输入 ${YELLOW}byypro${NC} 回车，即可进入新版本"
     pause
 }
 
@@ -1053,20 +1087,7 @@ main_menu() {
         server_count="$(rule_count_by_type tunnel_server)"
         client_count="$(rule_count_by_type tunnel_client)"
 
-        print_header
-        echo -e " ${GREEN}当前状态：${NC}单机直连 ${YELLOW}${direct_count}${NC} 条 | 海外接收端 ${YELLOW}${server_count}${NC} 条 | 国内转发端 ${YELLOW}${client_count}${NC} 条"
-        line
-        echo -e " ${GREEN}1. 新手模式：单机直连${NC}"
-        echo -e " ${RED}2. 双机稳定模式${NC}"
-        echo -e " 3. 查看当前配置和状态"
-        echo -e " 4. 删除配置 / 重来"
-        echo -e " 5. 一键网络优化"
-        echo -e " 6. 一键检测问题"
-        echo -e " 7. 检查脚本更新"
-        echo -e " 0. 退出脚本"
-        line
-        echo -e "${PURPLE}温馨提示：关闭窗口后，下次直接输入 ${YELLOW}byypro${PURPLE} 回车即可再次打开菜单${NC}"
-        echo ""
+        show_menu "$direct_count" "$server_count" "$client_count"
         read -r -p "请输入对应的数字 [0-7]: " choice
         case "$choice" in
             1) create_direct_rule; pause ;;
@@ -1078,8 +1099,8 @@ main_menu() {
             7) update_script ;;
             0)
                 echo ""
-                ok "感谢使用，祝你一路顺手、少折腾"
-                echo -e "以后要再次打开，直接输入 ${YELLOW}byypro${NC} 即可"
+                ok "感谢使用，祝老板使用顺利、一路稳定"
+                echo -e "${YELLOW}下次如需继续设置，直接输入 ${GREEN}byypro${YELLOW} 回车即可再次打开菜单${NC}"
                 echo ""
                 exit 0
                 ;;
